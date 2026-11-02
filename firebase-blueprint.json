@@ -1,0 +1,174 @@
+{
+  "entities": {
+    "GlobalConfig": {
+      "title": "GlobalConfig",
+      "description": "Configurazione globale del motore matematico a 3 stadi, evoluzione EMA ed economia Token.",
+      "type": "object",
+      "properties": {
+        "role_threshold_tau": { "type": "number", "description": "Soglia di specializzazione ruolo tau" },
+        "polar_weights": { "type": "object", "description": "Coefficienti polari a, b, c, d" },
+        "macro_weights_A": { "type": "object", "description": "Pesi Soluzione A (w1, w2, w3)" },
+        "macro_weights_B": { "type": "object", "description": "Pesi Soluzione B (w1, w2, w3)" },
+        "gk_multiplier_lambda": { "type": "number", "description": "Moltiplicatore peso Portiere lambda_GK" },
+        "micro_weights_alpha": { "type": "object", "description": "Pesi Micro Forza alpha1..alpha4" },
+        "ema_learning_rate_eta": { "type": "number", "description": "Tasso di apprendimento EMA eta" },
+        "initial_tokens": { "type": "number", "description": "Bonus Token iniziale alla validazione" },
+        "attendance_reward_tokens": { "type": "number", "description": "Ricompensa Token per Presenza + Voto" },
+        "bet_odds": { "type": "object", "description": "Quote Scommesse 1, X, 2" },
+        "dynamic_odds_enabled": { "type": "boolean", "description": "Adeguamento dinamico quote +/-0.15" },
+        "max_bet_amount": { "type": "number", "description": "Tetto massimo opzionale di puntata" },
+        "active_match_id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": [
+        "role_threshold_tau",
+        "polar_weights",
+        "macro_weights_A",
+        "macro_weights_B",
+        "gk_multiplier_lambda",
+        "micro_weights_alpha",
+        "ema_learning_rate_eta",
+        "initial_tokens",
+        "attendance_reward_tokens",
+        "bet_odds",
+        "active_match_id"
+      ]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "Profilo giocatore con 5 pesi di movimento, peso portiere, ruolo calcolato e statistiche denormalizzate per le 4 classifiche.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "nickname": { "type": "string", "maxLength": 60, "description": "Soprannome del giocatore (opzionale)" },
+        "avatar_url": { "type": "string", "maxLength": 500 },
+        "claimed_by_uid": { "type": "string", "maxLength": 128 },
+        "claim_status": { "type": "string", "enum": ["UNCLAIMED", "PENDING_APPROVAL", "VALIDATED"] },
+        "is_active": { "type": "boolean" },
+        "weights": { "type": "object", "description": "Pesi tiro, velocita, passaggio, resistenza, difesa, portiere in [0,1]" },
+        "wants_to_be_gk": { "type": "boolean" },
+        "computed": { "type": "object", "description": "Overall M_i, delta_index, role_state, role_label" },
+        "attr_votes_count": { "type": "object", "description": "Contatore storico valutazioni per attributo" },
+        "stats": { "type": "object", "description": "Statistiche denormalizzate: tokens, matches_played, matches_won, matches_drawn, bets_total, bets_won, bets_net_profit, votes_completed_matches" },
+        "initial_weights": { "type": "object", "description": "Pesi base iniziali all'iscrizione" },
+        "manual_override": { "type": "boolean", "description": "Flag override manuale del Direttore" },
+        "manual_weights": { "type": "object", "description": "Pesi forzati dal Direttore se manual_override = true" },
+        "natural_weights": { "type": "object", "description": "Pesi naturali calcolati dalla media esponenziale dei voti" },
+        "override_audit": { "type": "object", "description": "Traccia interna modifiche admin (data, autore, scostamento)" }
+      },
+      "required": [
+        "id",
+        "name",
+        "claim_status",
+        "is_active",
+        "weights",
+        "wants_to_be_gk",
+        "computed",
+        "attr_votes_count",
+        "stats"
+      ]
+    },
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Account utente autenticato con Google e stato di Account Claiming.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 254 },
+        "display_name": { "type": "string", "maxLength": 100 },
+        "linked_player_id": { "type": "string", "maxLength": 128 },
+        "auth_status": { "type": "string", "enum": ["UNCLAIMED", "PENDING_APPROVAL", "VALIDATED"] },
+        "is_admin": { "type": "boolean" },
+        "created_at": { "type": "number" }
+      },
+      "required": [
+        "uid",
+        "email",
+        "display_name",
+        "linked_player_id",
+        "auth_status",
+        "is_admin",
+        "created_at"
+      ]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Documento singolo del match settimanale con formazioni, scommesse 1X2 incorporate e accumulatori anonimi dei voti.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "date_label": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "status": { "type": "string", "enum": ["DRAFT", "OPEN_FOR_BETS", "IN_PLAY", "VOTING_OPEN", "ARCHIVED"] },
+        "convocati_ids": { "type": "array", "description": "Lista dei 10 giocatori convocati" },
+        "active_gks_ids": { "type": "array", "description": "Portieri attivi nel match (max 2)" },
+        "selected_solution": { "type": "string", "enum": ["A", "B", "CUSTOM"] },
+        "team_1": { "type": "object", "description": "Formazione e metriche Squadra 1 (Maglia Chiara)" },
+        "team_2": { "type": "object", "description": "Formazione e metriche Squadra 2 (Maglia Scura)" },
+        "score": { "type": "object", "description": "Risultato finale team_1, team_2, winner" },
+        "odds": { "type": "object", "description": "Quote applicate al match 1, X, 2" },
+        "bets": { "type": "object", "description": "Mappa delle scommesse per playerId" },
+        "voting_tracker": { "type": "object", "description": "Tracciamento anonimo votanti e accumulatori" }
+      },
+      "required": [
+        "id",
+        "date_label",
+        "status",
+        "convocati_ids",
+        "active_gks_ids",
+        "selected_solution",
+        "team_1",
+        "team_2",
+        "score",
+        "odds",
+        "bets",
+        "voting_tracker"
+      ]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Heartbeat per validazione connettività Firestore (test/connection).",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/test/{testId}": {
+      "schema": { "$ref": "#/entities/TestConnection" },
+      "description": "Endpoint per verifica iniziale connessione Firestore (test/connection)"
+    },
+    "/config/{configId}": {
+      "schema": { "$ref": "#/entities/GlobalConfig" },
+      "description": "Impostazioni globali del sistema di Produzione (config/global_settings)"
+    },
+    "/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Profili giocatori Produzione"
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Account utenti Produzione"
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Partite settimanali Produzione"
+    },
+    "/test_config/{configId}": {
+      "schema": { "$ref": "#/entities/GlobalConfig" },
+      "description": "Impostazioni globali del Database di Test (Sandbox)"
+    },
+    "/test_players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Profili giocatori del Database di Test (Sandbox)"
+    },
+    "/test_users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Account utenti del Database di Test (Sandbox)"
+    },
+    "/test_matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Partite settimanali del Database di Test (Sandbox)"
+    }
+  }
+}

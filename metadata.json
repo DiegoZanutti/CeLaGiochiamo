@@ -1,0 +1,6 @@
+{
+  "name": "Calcetto 5vs5 Pro — Matchmaking, Scommesse & FUT",
+  "description": "WebApp Mobile-First per l'organizzazione settimanale di partite di Calcio a 5 con motore matematico a 3 stadi, scommesse 1X2 con token, votazioni anonime ed evoluzione Carte FUT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

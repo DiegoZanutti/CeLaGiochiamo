@@ -1,0 +1,265 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'diego.zanutti@gmail.com';
+    }
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true
+      );
+    }
+
+    // Validation Helpers
+    function isValidConfig(data) {
+      return data.keys().hasAll([
+        'role_threshold_tau', 'polar_weights', 'macro_weights_A', 'macro_weights_B',
+        'gk_multiplier_lambda', 'micro_weights_alpha', 'ema_learning_rate_eta',
+        'initial_tokens', 'attendance_reward_tokens', 'bet_odds', 'active_match_id'
+      ]) &&
+      data.keys().hasOnly([
+        'role_threshold_tau', 'polar_weights', 'macro_weights_A', 'macro_weights_B',
+        'gk_multiplier_lambda', 'micro_weights_alpha', 'ema_learning_rate_eta',
+        'initial_tokens', 'attendance_reward_tokens', 'bet_odds', 'dynamic_odds_enabled',
+        'dynamic_odds_sensitivity', 'max_bet_amount', 'active_match_id'
+      ]) &&
+      (!('dynamic_odds_sensitivity' in data) || data.dynamic_odds_sensitivity is number) &&
+      data.role_threshold_tau is number &&
+      data.gk_multiplier_lambda is number &&
+      data.ema_learning_rate_eta is number &&
+      data.initial_tokens is number &&
+      data.attendance_reward_tokens is number &&
+      data.polar_weights is map &&
+      data.macro_weights_A is map &&
+      data.macro_weights_B is map &&
+      data.micro_weights_alpha is map &&
+      data.bet_odds is map &&
+      data.active_match_id is string && data.active_match_id.size() <= 128;
+    }
+
+    function isValidPlayer(data) {
+      return data.keys().hasAll([
+        'id', 'name', 'claim_status', 'is_active', 'weights',
+        'wants_to_be_gk', 'computed', 'attr_votes_count', 'stats'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'name', 'nickname', 'avatar_url', 'claimed_by_uid', 'claim_status',
+        'is_active', 'weights', 'wants_to_be_gk', 'computed', 'attr_votes_count', 'stats',
+        'initial_weights', 'manual_override', 'manual_weights', 'natural_weights', 'override_audit'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+      (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 60)) &&
+      (!('avatar_url' in data) || (data.avatar_url is string && data.avatar_url.size() <= 250000)) &&
+      (!('claimed_by_uid' in data) || (data.claimed_by_uid is string && data.claimed_by_uid.size() <= 128)) &&
+      data.claim_status is string && data.claim_status in ['UNCLAIMED', 'PENDING_APPROVAL', 'VALIDATED'] &&
+      data.is_active is bool &&
+      data.wants_to_be_gk is bool &&
+      data.weights is map &&
+      data.computed is map &&
+      data.attr_votes_count is map &&
+      data.stats is map &&
+      (!('initial_weights' in data) || data.initial_weights is map) &&
+      (!('manual_override' in data) || data.manual_override is bool) &&
+      (!('manual_weights' in data) || data.manual_weights is map) &&
+      (!('natural_weights' in data) || data.natural_weights is map) &&
+      (!('override_audit' in data) || data.override_audit is map);
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll([
+        'uid', 'email', 'display_name', 'linked_player_id', 'auth_status', 'is_admin', 'created_at'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'email', 'display_name', 'linked_player_id', 'auth_status', 'is_admin', 'created_at'
+      ]) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.email is string && data.email.size() <= 254 &&
+      data.display_name is string && data.display_name.size() <= 100 &&
+      data.linked_player_id is string && data.linked_player_id.size() <= 128 &&
+      data.auth_status is string && data.auth_status in ['UNCLAIMED', 'PENDING_APPROVAL', 'VALIDATED'] &&
+      data.is_admin is bool &&
+      data.created_at is number;
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasAll([
+        'id', 'date_label', 'status', 'convocati_ids', 'active_gks_ids',
+        'selected_solution', 'team_1', 'team_2', 'score', 'odds', 'bets', 'voting_tracker'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'date_label', 'status', 'convocati_ids', 'active_gks_ids',
+        'selected_solution', 'team_1', 'team_2', 'score', 'odds', 'bets', 'voting_tracker'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.date_label is string && data.date_label.size() >= 1 && data.date_label.size() <= 120 &&
+      data.status is string && data.status in ['DRAFT', 'OPEN_FOR_BETS', 'IN_PLAY', 'VOTING_OPEN', 'ARCHIVED'] &&
+      data.convocati_ids is list && data.convocati_ids.size() <= 10 &&
+      (data.convocati_ids.size() == 0 || (data.convocati_ids[0] is string && data.convocati_ids[0].size() <= 128)) &&
+      data.active_gks_ids is list && data.active_gks_ids.size() <= 2 &&
+      (data.active_gks_ids.size() == 0 || (data.active_gks_ids[0] is string && data.active_gks_ids[0].size() <= 128)) &&
+      data.selected_solution is string && data.selected_solution in ['A', 'B', 'CUSTOM'] &&
+      data.team_1 is map &&
+      data.team_2 is map &&
+      data.score is map &&
+      data.odds is map &&
+      data.bets is map &&
+      data.voting_tracker is map;
+    }
+
+    // Heartbeat connection test collection
+    match /test/{testId} {
+      allow read: if isValidId(testId);
+    }
+
+    // =========================================================================
+    // PRODUCTION COLLECTIONS (config, players, users, matches)
+    // =========================================================================
+    match /config/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if true;
+      allow create: if isValidId(configId) && isValidConfig(incoming()) && isVerifiedUser();
+      allow update: if isValidId(configId) && isValidConfig(incoming()) && (
+        isAdmin() ||
+        (isVerifiedUser() && incoming().diff(existing()).affectedKeys().hasOnly([
+          'role_threshold_tau', 'polar_weights', 'macro_weights_A', 'macro_weights_B',
+          'gk_multiplier_lambda', 'micro_weights_alpha', 'ema_learning_rate_eta',
+          'initial_tokens', 'attendance_reward_tokens', 'bet_odds', 'dynamic_odds_enabled',
+          'dynamic_odds_sensitivity', 'max_bet_amount', 'active_match_id'
+        ]))
+      );
+      allow delete: if isValidId(configId) && isAdmin();
+    }
+
+    match /players/{playerId} {
+      allow get: if isValidId(playerId);
+      allow list: if true;
+      allow create: if isValidId(playerId) && isValidPlayer(incoming()) && incoming().id == playerId && isVerifiedUser();
+      allow update: if isValidId(playerId) && isValidPlayer(incoming()) && incoming().id == existing().id && (
+        isAdmin() ||
+        (isVerifiedUser() &&
+          existing().claim_status == 'UNCLAIMED' &&
+          incoming().claim_status == 'PENDING_APPROVAL' &&
+          incoming().claimed_by_uid == request.auth.uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['claimed_by_uid', 'claim_status'])
+        ) ||
+        (isVerifiedUser() &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'stats', 'attr_votes_count', 'weights', 'initial_weights', 'natural_weights',
+            'manual_override', 'computed', 'wants_to_be_gk', 'claim_status', 'claimed_by_uid',
+            'name', 'nickname', 'avatar_url', 'is_active'
+          ])
+        )
+      );
+      allow delete: if isValidId(playerId) && isAdmin();
+    }
+
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || existing().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL', 'VALIDATED']);
+      allow create: if isValidId(uid) && isOwner(uid) && isValidUser(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        (incoming().is_admin == false || isBootstrappedAdmin()) &&
+        (incoming().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL'] || isBootstrappedAdmin());
+      allow update: if isValidId(uid) && isValidUser(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().created_at == existing().created_at && (
+          isAdmin() ||
+          (isOwner(uid) &&
+            incoming().is_admin == existing().is_admin &&
+            (incoming().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL'] || existing().auth_status == 'VALIDATED') &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['linked_player_id', 'auth_status', 'display_name'])
+          )
+        );
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    match /matches/{matchId} {
+      allow get: if isValidId(matchId);
+      allow list: if true;
+      allow create: if isValidId(matchId) && isValidMatch(incoming()) && incoming().id == matchId && isVerifiedUser();
+      allow update: if isValidId(matchId) && isValidMatch(incoming()) && incoming().id == existing().id && (
+        isAdmin() ||
+        (isVerifiedUser() &&
+          existing().status == 'OPEN_FOR_BETS' &&
+          incoming().status == 'OPEN_FOR_BETS' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['bets'])
+        ) ||
+        (isVerifiedUser() &&
+          existing().status == 'VOTING_OPEN' &&
+          incoming().status == 'VOTING_OPEN' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['voting_tracker'])
+        ) ||
+        (isVerifiedUser() &&
+          existing().status != 'ARCHIVED' &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'date_label', 'status', 'convocati_ids', 'active_gks_ids',
+            'selected_solution', 'team_1', 'team_2', 'score', 'odds', 'bets', 'voting_tracker'
+          ])
+        )
+      );
+      allow delete: if isValidId(matchId) && isAdmin();
+    }
+
+    // =========================================================================
+    // ISOLATED TEST DATABASE COLLECTIONS (test_config, test_players, test_users, test_matches)
+    // =========================================================================
+    match /test_config/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if resource == null || existing().active_match_id is string;
+      allow create: if isValidId(configId) && isValidConfig(incoming()) && isVerifiedUser();
+      allow update: if isValidId(configId) && isValidConfig(incoming()) && isVerifiedUser();
+      allow delete: if isValidId(configId) && isVerifiedUser();
+    }
+
+    match /test_players/{playerId} {
+      allow get: if isValidId(playerId);
+      allow list: if resource == null || existing().is_active in [true, false];
+      allow create: if isValidId(playerId) && isValidPlayer(incoming()) && incoming().id == playerId && isVerifiedUser();
+      allow update: if isValidId(playerId) && isValidPlayer(incoming()) && incoming().id == existing().id && isVerifiedUser();
+      allow delete: if isValidId(playerId) && isVerifiedUser();
+    }
+
+    match /test_users/{uid} {
+      allow get: if isValidId(uid) && isVerifiedUser();
+      allow list: if isVerifiedUser() && (resource == null || existing().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL', 'VALIDATED']);
+      allow create: if isValidId(uid) && isValidUser(incoming()) && isVerifiedUser();
+      allow update: if isValidId(uid) && isValidUser(incoming()) && isVerifiedUser();
+      allow delete: if isValidId(uid) && isVerifiedUser();
+    }
+
+    match /test_matches/{matchId} {
+      allow get: if isValidId(matchId);
+      allow list: if resource == null || existing().status in ['DRAFT', 'OPEN_FOR_BETS', 'IN_PLAY', 'VOTING_OPEN', 'ARCHIVED'];
+      allow create: if isValidId(matchId) && isValidMatch(incoming()) && incoming().id == matchId && isVerifiedUser();
+      allow update: if isValidId(matchId) && isValidMatch(incoming()) && incoming().id == existing().id && isVerifiedUser();
+      allow delete: if isValidId(matchId) && isVerifiedUser();
+    }
+  }
+}

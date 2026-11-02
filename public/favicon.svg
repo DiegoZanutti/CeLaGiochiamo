@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#022c22"/>
+      <stop offset="50%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Stadium Crest Shape -->
+  <path d="M32 4 C48 4 58 12 58 28 C58 48 38 58 32 60 C26 58 6 48 6 28 C6 12 16 4 32 4 Z" 
+        fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="2.5" />
+
+  <!-- Tactical Pitch Lines -->
+  <circle cx="32" cy="30" r="14" fill="none" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.5" />
+  <line x1="12" y1="30" x2="52" y2="30" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.5" />
+
+  <!-- Ball Star Accent -->
+  <circle cx="32" cy="30" r="5" fill="#34d399" />
+  <polygon points="32,18 34,22 38,23 35,26 36,30 32,27 28,30 29,26 26,23 30,22" fill="#fbbf24" />
+</svg>
