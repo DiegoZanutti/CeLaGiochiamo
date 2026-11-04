@@ -97,13 +97,6 @@ export interface PlayerStats {
   votes_completed_matches: number;
 }
 
-export interface OverrideAuditInfo {
-  modified_at: string;
-  modified_by?: string;
-  previous_natural_fut_ovr?: number;
-  manual_fut_ovr?: number;
-}
-
 export interface Player {
   id: string;
   name: string;
@@ -118,10 +111,6 @@ export interface Player {
   attr_votes_count: AttrVotesCount;
   stats: PlayerStats;
   initial_weights?: PlayerWeights;
-  manual_override?: boolean;
-  manual_weights?: PlayerWeights;
-  natural_weights?: PlayerWeights;
-  override_audit?: OverrideAuditInfo;
 }
 
 export interface UserAccount {

@@ -329,7 +329,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                 >
                   <Camera className="w-3.5 h-3.5" />
                   {isProcessingPhoto
-                    ? 'Ottimizzazione foto...'
+                    ? 'Elaborazione foto...'
                     : currentPlayer.avatar_url
                     ? 'Cambia Foto Card'
                     : 'Carica Foto Card'}
@@ -346,9 +346,6 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                   </button>
                 )}
               </div>
-              <p className="text-[11px] text-slate-400 text-center max-w-xs">
-                Ritaglio automatico sul volto e ottimizzazione luci per lo scudetto FUT e il tuo profilo.
-              </p>
             </div>
           </div>
 

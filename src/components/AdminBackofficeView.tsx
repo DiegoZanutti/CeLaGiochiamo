@@ -12,7 +12,7 @@ import {
   computeMatchOdds,
   futStatToWeight,
   getPlayerFutOverall,
-  getPlayerNaturalFutOverall,
+  getPlayerInitialFutOverall,
   weightToFutStat,
 } from '../engine/mathEngine';
 import { DEFAULT_GLOBAL_CONFIG, setClientDatabaseEnvironment } from '../db/testDatabase';
@@ -465,13 +465,20 @@ export const AdminBackofficeView: React.FC<{
   // Editing player state
   const [editingPlayer, setEditingPlayer] = useState<EditingPlayerState | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [uploadingPhotoPlayerId, setUploadingPhotoPlayerId] = useState<string | null>(null);
   const [userLinkDrafts, setUserLinkDrafts] = useState<Record<string, string>>({});
+  const [selectedUserUidForLink, setSelectedUserUidForLink] = useState<string>('');
+  const [selectedPlayerIdForLink, setSelectedPlayerIdForLink] = useState<string>('');
 
   // Tab 4 state: Global Settings form & active info popover
   const [cfgDraft, setCfgDraft] = useState<GlobalConfig>(config);
   const [activeVariableInfoKey, setActiveVariableInfoKey] = useState<string | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [infoModalTab, setInfoModalTab] = useState<'INTUITIVE' | 'STAGES' | 'POLAR' | 'FORMULAS'>('INTUITIVE');
+
+  React.useEffect(() => {
+    setCfgDraft(config);
+  }, [config]);
 
   const playerMap = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -540,7 +547,7 @@ export const AdminBackofficeView: React.FC<{
 
     await createNewPlayer({
       name: newPlayerName.trim(),
-      nickname: newPlayerNickname.trim() || undefined,
+      nickname: newPlayerNickname.trim(),
       weights,
       wantsToBeGk: newPlayerWantsGk,
     });
@@ -595,14 +602,15 @@ export const AdminBackofficeView: React.FC<{
     const tokensParsed = parseInt(editingPlayer.tokensDraft, 10);
     const tokensFinal = isNaN(tokensParsed) || tokensParsed < 0 ? 0 : tokensParsed;
 
+    const cleanNick = editingPlayer.nickname.trim();
+
     const updated: Player = {
       ...original,
       name: editingPlayer.name.trim() || original.name,
-      nickname: editingPlayer.nickname.trim() || undefined,
+      nickname: cleanNick,
       wants_to_be_gk: editingPlayer.wants_to_be_gk,
       initial_weights: newInitialWeights,
       weights: newInitialWeights,
-      manual_override: false,
       stats: {
         ...original.stats,
         tokens: tokensFinal,
@@ -623,6 +631,7 @@ export const AdminBackofficeView: React.FC<{
 
   const handleAdminPhotoUpload = async (playerId: string, file?: File) => {
     if (!file) return;
+    setUploadingPhotoPlayerId(playerId);
     try {
       const dataUrl = await preprocessPlayerPhoto(file);
       await updatePlayerPhoto(playerId, dataUrl);
@@ -632,6 +641,8 @@ export const AdminBackofficeView: React.FC<{
           ? err.message
           : 'Errore durante il caricamento della foto.'
       );
+    } finally {
+      setUploadingPhotoPlayerId(null);
     }
   };
 
@@ -1613,7 +1624,7 @@ export const AdminBackofficeView: React.FC<{
                       );
                     }
 
-                    const initOvr = getPlayerNaturalFutOverall(p);
+                    const initOvr = getPlayerInitialFutOverall(p);
                     const curOvr = getPlayerFutOverall(p);
                     const ovrDelta = curOvr - initOvr;
                     const totalVotesReceived = Object.values(p.attr_votes_count || {}).reduce(
@@ -1646,19 +1657,33 @@ export const AdminBackofficeView: React.FC<{
                                 </div>
                               )}
                               <div className="flex items-center gap-2 mt-0.5">
-                                <label className="text-[10px] text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1">
+                                <label
+                                  className={`text-[10px] text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 ${
+                                    uploadingPhotoPlayerId === p.id
+                                      ? 'opacity-60 pointer-events-none'
+                                      : ''
+                                  }`}
+                                >
                                   <Camera className="w-3 h-3" />
-                                  <span>{p.avatar_url ? 'Cambia foto' : 'Carica foto'}</span>
+                                  <span>
+                                    {uploadingPhotoPlayerId === p.id
+                                      ? 'Elaborazione foto...'
+                                      : p.avatar_url
+                                        ? 'Cambia foto'
+                                        : 'Carica foto'}
+                                  </span>
                                   <input
                                     type="file"
                                     accept="image/*"
                                     className="sr-only"
-                                    onChange={(e) =>
-                                      handleAdminPhotoUpload(p.id, e.target.files?.[0])
-                                    }
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      e.target.value = '';
+                                      handleAdminPhotoUpload(p.id, f);
+                                    }}
                                   />
                                 </label>
-                                {p.avatar_url && (
+                                {p.avatar_url && uploadingPhotoPlayerId !== p.id && (
                                   <button
                                     type="button"
                                     onClick={() => updatePlayerPhoto(p.id, '')}
@@ -1848,14 +1873,19 @@ export const AdminBackofficeView: React.FC<{
             )}
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-            <div className="mb-4">
-              <h3 className="text-xl font-display font-bold text-white">
-                Gestione Connessioni Utenti ↔ Giocatori (Tutti gli Account)
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Collega, cambia o scollega liberamente il profilo giocatore associato a qualsiasi account utente registrato (incluso l&apos;account del Direttore).
-              </p>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xl font-display font-bold text-white">
+                  Gestione Connessioni Utenti ↔ Giocatori (Tutti gli Account)
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Scegli un utente tra tutti quelli registrati al sito e collegalo o scollegalo dal relativo profilo giocatore.
+                </p>
+              </div>
+              <span className="inline-flex items-center px-3 py-1 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono-tabular text-emerald-400 shrink-0">
+                Utenti registrati: {users.length}
+              </span>
             </div>
 
             {users.length === 0 ? (
@@ -1863,7 +1893,158 @@ export const AdminBackofficeView: React.FC<{
                 Nessun utente registrato trovato.
               </div>
             ) : (
-              <div className="space-y-3">
+              <>
+                {/* Selettore Rapido Utente Registrato -> Giocatore */}
+                {(() => {
+                  const activeUserObj =
+                    users.find((u) => u.uid === selectedUserUidForLink) || users[0];
+                  const effectiveUid = activeUserObj?.uid || '';
+                  const currentLinkedForSelected = activeUserObj?.linked_player_id || '';
+                  const effectivePlayerDraft =
+                    selectedUserUidForLink === effectiveUid
+                      ? selectedPlayerIdForLink
+                      : currentLinkedForSelected;
+                  const currentLinkedPlayerObj = playerMap.get(currentLinkedForSelected);
+
+                  return (
+                    <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 space-y-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <UserCheck className="w-4 h-4" />
+                          <span>Seleziona Utente Registrato e Associa Giocatore</span>
+                        </div>
+                        {activeUserObj && (
+                          <span className="text-[11px] text-slate-400">
+                            Stato account:{' '}
+                            <strong className="text-white">{activeUserObj.auth_status}</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                        <div className="md:col-span-5">
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            1. Scegli Utente Registrato ({users.length} disponibili)
+                          </label>
+                          <select
+                            aria-label="Scegli utente registrato"
+                            value={effectiveUid}
+                            onChange={(e) => {
+                              const newUid = e.target.value;
+                              setSelectedUserUidForLink(newUid);
+                              const found = users.find((u) => u.uid === newUid);
+                              setSelectedPlayerIdForLink(found?.linked_player_id || '');
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                          >
+                            {users.map((u) => {
+                              const linkedP = u.linked_player_id
+                                ? playerMap.get(u.linked_player_id)
+                                : undefined;
+                              return (
+                                <option key={u.uid} value={u.uid}>
+                                  {u.display_name} ({u.email})
+                                  {u.is_admin ? ' · [Direttore]' : ''}
+                                  {linkedP ? ` → ${linkedP.name}` : ' → [Non collegato]'}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <div className="md:col-span-4">
+                          <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                            2. Scegli Giocatore da Associare
+                          </label>
+                          <select
+                            aria-label="Scegli giocatore da associare"
+                            value={effectivePlayerDraft}
+                            onChange={(e) => {
+                              if (selectedUserUidForLink !== effectiveUid) {
+                                setSelectedUserUidForLink(effectiveUid);
+                              }
+                              setSelectedPlayerIdForLink(e.target.value);
+                            }}
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                          >
+                            <option value="">— Nessun giocatore collegato —</option>
+                            {players.map((p) => {
+                              const ownerUser = users.find(
+                                (other) =>
+                                  other.linked_player_id === p.id && other.uid !== effectiveUid
+                              );
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.wants_to_be_gk ? 'POR' : p.computed.role_label})
+                                  {ownerUser ? ` — già di ${ownerUser.display_name}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        <div className="md:col-span-3 flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={!effectiveUid || effectivePlayerDraft === currentLinkedForSelected}
+                            onClick={async () => {
+                              if (!effectiveUid) return;
+                              await assignPlayerToUser(effectiveUid, effectivePlayerDraft);
+                              setSelectedUserUidForLink(effectiveUid);
+                              setSelectedPlayerIdForLink(effectivePlayerDraft);
+                            }}
+                            className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            Salva
+                          </button>
+
+                          {currentLinkedForSelected && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!effectiveUid) return;
+                                await unlinkAccountClaim(effectiveUid);
+                                setSelectedUserUidForLink(effectiveUid);
+                                setSelectedPlayerIdForLink('');
+                              }}
+                              className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs cursor-pointer transition-colors"
+                            >
+                              Scollega
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                        <span>
+                          Utente selezionato:{' '}
+                          <strong className="text-white">{activeUserObj?.display_name}</strong> (
+                          {activeUserObj?.email})
+                        </span>
+                        <span>
+                          Associazione attuale:{' '}
+                          {currentLinkedPlayerObj ? (
+                            <strong className="text-emerald-400">
+                              {currentLinkedPlayerObj.name} (
+                              {currentLinkedPlayerObj.wants_to_be_gk
+                                ? 'POR'
+                                : currentLinkedPlayerObj.computed.role_label}
+                              )
+                            </strong>
+                          ) : (
+                            <span className="text-amber-400">Nessun giocatore collegato</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Elenco Completo Utenti Registrati ({users.length})
+                  </div>
                 {users.map((u) => {
                   const currentLinkedId = u.linked_player_id || '';
                   const draftSelectedId =
@@ -1971,7 +2152,8 @@ export const AdminBackofficeView: React.FC<{
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1992,7 +2174,19 @@ export const AdminBackofficeView: React.FC<{
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setInfoModalTab('INTUITIVE');
+                  setIsInfoModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-slate-950 border border-emerald-500/40 hover:border-emerald-400 text-emerald-400 hover:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Come funziona il meccanismo di bilanciamento delle squadre"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Come Funziona l&apos;Equilibrio</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setCfgDraft(DEFAULT_GLOBAL_CONFIG)}
@@ -2002,12 +2196,45 @@ export const AdminBackofficeView: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => updateGlobalSettings(cfgDraft)}
+                onClick={() =>
+                  updateGlobalSettings({
+                    ...cfgDraft,
+                    dynamic_odds_enabled: true,
+                  })
+                }
                 className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
               >
                 <Save className="w-4 h-4" /> Salva Configurazione
               </button>
             </div>
+          </div>
+
+          {/* Banner Come Funziona l'Equilibrio spostato in Regole */}
+          <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
+                <HelpCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs sm:text-sm font-semibold text-white">
+                  Come Funziona l&apos;Equilibrio — Motore Matematico Gerarchico
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Guida interattiva a 4 schede su forza complessiva, formula dei poli (Attacco/Difesa), ottimizzazione combinatoria ed evoluzione voti EMA.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setInfoModalTab('INTUITIVE');
+                setIsInfoModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-xs font-semibold text-emerald-300 hover:text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Apri Come Funziona l&apos;Equilibrio</span>
+            </button>
           </div>
 
           {/* Interactive Info Panel if a variable is clicked */}

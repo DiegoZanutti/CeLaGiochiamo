@@ -3,7 +3,7 @@
 ## 1. Data Invariants
 1. **Valid Document IDs**: All document IDs (`configId`, `playerId`, `uid`, `matchId`) must match `^[a-zA-Z0-9_\-]+$` and be at most 128 characters.
 2. **PII Protection (`/users/{uid}`)**: User documents store `email` (PII). Reading `/users/{uid}` is strictly restricted to the document owner (`request.auth.uid == uid`) or a verified Admin (`isAdmin()`).
-3. **Self-Registration Integrity**: When a user creates their `/users/{uid}` profile, `incoming().uid == request.auth.uid`, and non-admin users cannot self-assign `is_admin == true` unless their verified email matches the bootstrapped admin (`diego.zanutti@gmail.com`).
+3. **Self-Registration Integrity**: When a verified user creates or updates their `/users/{uid}` profile, `incoming().uid == request.auth.uid`, and `is_admin` is synced based on the `VITE_DIRETTORE_EMAIL` secret.
 4. **Strict Schema & Size Bounds**: Every collection enforces strict `hasAll` and `hasOnly` key checks on creation and bounded string/list lengths to prevent shadow fields and resource exhaustion.
 5. **Verified Email Requirement**: Write operations require `request.auth != null && request.auth.token.email_verified == true`.
 

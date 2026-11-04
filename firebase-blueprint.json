@@ -50,11 +50,7 @@
         "computed": { "type": "object", "description": "Overall M_i, delta_index, role_state, role_label" },
         "attr_votes_count": { "type": "object", "description": "Contatore storico valutazioni per attributo" },
         "stats": { "type": "object", "description": "Statistiche denormalizzate: tokens, matches_played, matches_won, matches_drawn, bets_total, bets_won, bets_net_profit, votes_completed_matches" },
-        "initial_weights": { "type": "object", "description": "Pesi base iniziali all'iscrizione" },
-        "manual_override": { "type": "boolean", "description": "Flag override manuale del Direttore" },
-        "manual_weights": { "type": "object", "description": "Pesi forzati dal Direttore se manual_override = true" },
-        "natural_weights": { "type": "object", "description": "Pesi naturali calcolati dalla media esponenziale dei voti" },
-        "override_audit": { "type": "object", "description": "Traccia interna modifiche admin (data, autore, scostamento)" }
+        "initial_weights": { "type": "object", "description": "Pesi base iniziali impostati dal Direttore" }
       },
       "required": [
         "id",

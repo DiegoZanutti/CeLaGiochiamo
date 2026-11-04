@@ -8,6 +8,8 @@ import { Search, SlidersHorizontal } from 'lucide-react';
 type RoleFilter = 'ALL' | RoleLabel;
 type SortKey = 'overall' | AllAttrKey;
 
+const MIN_VOTED_MATCHES_FOR_FUT_GALLERY = 5;
+
 export const FutGalleryView: React.FC = () => {
   const { players } = useApp();
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
@@ -15,9 +17,18 @@ export const FutGalleryView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
+  const unlockedPlayers = useMemo(
+    () =>
+      players.filter(
+        (p) =>
+          p.is_active &&
+          (p.stats?.votes_completed_matches ?? 0) >= MIN_VOTED_MATCHES_FOR_FUT_GALLERY
+      ),
+    [players]
+  );
+
   const filteredAndSortedPlayers = useMemo(() => {
-    return players
-      .filter((p) => p.is_active)
+    return unlockedPlayers
       .filter((p) => {
         if (roleFilter === 'ALL') return true;
         const effectiveRole: RoleLabel = p.wants_to_be_gk
@@ -37,7 +48,7 @@ export const FutGalleryView: React.FC = () => {
           weightToFutStat(a.weights[sortBy])
         );
       });
-  }, [players, roleFilter, sortBy, searchQuery]);
+  }, [unlockedPlayers, roleFilter, sortBy, searchQuery]);
 
   const roleTabs: Array<{ id: RoleFilter; label: string }> = [
     { id: 'ALL', label: 'Tutti i Ruoli' },
@@ -65,7 +76,7 @@ export const FutGalleryView: React.FC = () => {
         </div>
         <h2 className="text-xl font-display font-bold text-white">Carte FUT</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Nessun giocatore registrato nella rosa ufficiale. I profili appariranno qui automaticamente non appena Il Direttore aggiungerà i giocatori nel Backoffice.
+          Nessun giocatore registrato nella rosa ufficiale. I profili appariranno qui automaticamente non appena un giocatore avrà completato le votazioni in almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite.
         </p>
       </div>
     );
@@ -80,7 +91,7 @@ export const FutGalleryView: React.FC = () => {
               Carte FUT
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              Rosa ufficiale · {filteredAndSortedPlayers.length} giocatori
+              Carte sbloccate ({unlockedPlayers.length} su {players.filter((p) => p.is_active).length} giocatori) · La card compare dopo {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite votate
             </p>
           </div>
 
@@ -141,9 +152,18 @@ export const FutGalleryView: React.FC = () => {
         </div>
 
         {/* Cards Grid */}
-        {filteredAndSortedPlayers.length === 0 ? (
+        {unlockedPlayers.length === 0 ? (
+          <div className="text-center py-12 px-4 space-y-2">
+            <div className="text-slate-200 font-semibold text-sm">
+              Nessuna Card FUT ancora sbloccata
+            </div>
+            <p className="text-slate-400 text-xs max-w-md mx-auto">
+              La Card FUT di un giocatore compare in questa sezione non appena il giocatore ha completato le votazioni in almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite.
+            </p>
+          </div>
+        ) : filteredAndSortedPlayers.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-sm">
-            Nessun giocatore trovato con i filtri selezionati.
+            Nessun giocatore con almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite votate trovato con i filtri selezionati.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mt-6">

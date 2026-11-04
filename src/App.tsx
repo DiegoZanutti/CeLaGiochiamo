@@ -66,16 +66,12 @@ const MainShell: React.FC = () => {
       shortLabel: 'Match',
       icon: <Volleyball className="w-5 h-5" />,
     },
-    ...(isDirettore
-      ? [
-          {
-            id: 'GALLERY' as MainSection,
-            label: 'Galleria FUT',
-            shortLabel: 'Carte FUT',
-            icon: <LayoutGrid className="w-5 h-5" />,
-          },
-        ]
-      : []),
+    {
+      id: 'GALLERY',
+      label: 'Carte FUT',
+      shortLabel: 'Carte FUT',
+      icon: <LayoutGrid className="w-5 h-5" />,
+    },
     {
       id: 'LEADERBOARDS',
       label: 'Classifiche',
@@ -344,7 +340,7 @@ const MainShell: React.FC = () => {
             onOpenLogin={() => setIsLoginModalOpen(true)}
           />
         )}
-        {activeSection === 'GALLERY' && isDirettore && <FutGalleryView />}
+        {activeSection === 'GALLERY' && <FutGalleryView />}
         {activeSection === 'LEADERBOARDS' && <LeaderboardsView />}
         {activeSection === 'PROFILE' && (
           <ProfileWalletView

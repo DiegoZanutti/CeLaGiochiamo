@@ -860,8 +860,6 @@ export function consolidateMatchVotesEMA(
       ...player,
       initial_weights: initialBase,
       weights: newWeights,
-      natural_weights: newWeights,
-      manual_override: false,
       attr_votes_count: newAttrVotesCount,
       computed: recomputed.computed,
     };
@@ -911,13 +909,6 @@ export function getPlayerInitialFutOverall(player: Player): number {
 }
 
 /**
- * Alias di compatibilità per il calcolo dell'Overall FUT iniziale/naturale.
- */
-export function getPlayerNaturalFutOverall(player: Player): number {
-  return getPlayerInitialFutOverall(player);
-}
-
-/**
  * Ripristina i pesi attuali di un giocatore ai suoi Valori Iniziali.
  */
 export function restorePlayerToNaturalStats(
@@ -933,10 +924,8 @@ export function restorePlayerToNaturalStats(
 
   return {
     ...player,
-    manual_override: false,
     initial_weights: initialWeights,
     weights: initialWeights,
-    natural_weights: initialWeights,
     computed: recomputed.computed,
   };
 }
@@ -950,10 +939,10 @@ export function computeMatchOdds(
   config: GlobalConfig
 ): BetOdds {
   const baseOdds = { ...config.bet_odds };
-  if (config.dynamic_odds_enabled === false) {
+  const sensitivity = config.dynamic_odds_sensitivity ?? 0.50;
+  if (sensitivity <= 0) {
     return baseOdds;
   }
-  const sensitivity = config.dynamic_odds_sensitivity ?? 0.50;
   const diff = team1Power - team2Power;
   // Adeguamento proporzionale controllato dalla sensibilità del Direttore
   const maxDelta = Math.min(0.85, Math.max(0.20, sensitivity * 0.9));

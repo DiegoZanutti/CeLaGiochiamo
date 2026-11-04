@@ -65,27 +65,32 @@ export function setClientDatabaseEnvironment(env: 'production' | 'test' | 'defau
   } catch {}
 }
 
+function normalizeEmailAddress(email: string): string {
+  const cleaned = email.trim().toLowerCase();
+  if (!cleaned) return '';
+  if (!cleaned.includes('@') && cleaned.endsWith('.gmail.com')) {
+    return `${cleaned.slice(0, -'.gmail.com'.length)}@gmail.com`;
+  }
+  return cleaned;
+}
+
 export function getResolvedDirettoriEmails(): string[] {
   const raw = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DIRETTORE_EMAIL) || '';
-  const fallback = 'diego.zanutti@gmail.com';
-  const list = (raw || fallback)
-    .split(',')
-    .map((e: string) => e.trim().toLowerCase())
+  return raw
+    .split(/[,;\s]+/)
+    .map((e: string) => normalizeEmailAddress(e))
     .filter(Boolean);
-  if (!list.includes(fallback)) {
-    list.push(fallback);
-  }
-  return list;
 }
 
 export function isUserEmailDirettore(email?: string | null): boolean {
   if (!email) return false;
-  const normalized = email.trim().toLowerCase();
+  const normalized = normalizeEmailAddress(email);
+  if (!normalized) return false;
   return getResolvedDirettoriEmails().includes(normalized);
 }
 
 export function getResolvedDirettoreEmail(): string {
-  return getResolvedDirettoriEmails()[0];
+  return getResolvedDirettoriEmails()[0] || '';
 }
 
 export type TestScenarioId =
@@ -473,8 +478,8 @@ export function buildTestUsers(): UserAccount[] {
   return [
     {
       uid: 'uid_admin_diego',
-      email: 'diego.zanutti@gmail.com',
-      display_name: 'Diego Zanutti (Admin / Marco)',
+      email: getResolvedDirettoreEmail() || 'direttore@calcetto-test.it',
+      display_name: 'Il Direttore (Admin / Marco)',
       linked_player_id: 'player_marco',
       auth_status: 'VALIDATED',
       is_admin: true,

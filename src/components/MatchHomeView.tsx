@@ -1,18 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { BetPick, Player, TeamLineup } from '../types/models';
-import { getPlayerFutOverall } from '../engine/mathEngine';
+import { computeMatchOdds, getPlayerFutOverall } from '../engine/mathEngine';
 import { VotingModal } from './VotingModal';
 import { FutCardDetailModal } from './FutCard';
-import { BalancingInfoModal } from './BalancingInfoModal';
 import {
   Calendar,
   CheckCircle2,
   Coins,
-  HelpCircle,
   Lock,
   LogIn,
-  Sparkles,
   Vote,
 } from 'lucide-react';
 
@@ -58,7 +55,6 @@ export const MatchHomeView: React.FC<{
   const [betAmount, setBetAmount] = useState<number>(25);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
-  const [isBalancingInfoOpen, setIsBalancingInfoOpen] = useState(false);
 
   const playerMap = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -119,12 +115,24 @@ export const MatchHomeView: React.FC<{
     return balance;
   }, [currentPlayer, config.max_bet_amount]);
 
+  const liveOdds = useMemo(() => {
+    if (!match) return { '1': 1.85, 'X': 3.5, '2': 1.85 };
+    if (match.status === 'DRAFT' || match.status === 'OPEN_FOR_BETS') {
+      return computeMatchOdds(
+        match.team_1.total_power,
+        match.team_2.total_power,
+        config
+      );
+    }
+    return match.odds;
+  }, [match, config]);
+
   const effectiveBetAmount = Math.min(
     Math.max(1, betAmount),
     Math.max(1, maxAllowedBet)
   );
   const potentialPayout = match
-    ? Math.round(effectiveBetAmount * match.odds[selectedPick])
+    ? Math.round(effectiveBetAmount * liveOdds[selectedPick])
     : 0;
 
   const statusLabel = match
@@ -193,15 +201,6 @@ export const MatchHomeView: React.FC<{
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsBalancingInfoOpen(true)}
-                className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 text-[11px] font-medium text-slate-300 hover:text-emerald-400 flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Come funziona il meccanismo di bilanciamento delle squadre"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Come Funziona l&apos;Equilibrio</span>
-              </button>
               {match && match.score.team_1 !== null && match.score.team_2 !== null && (
                 <div className="text-sm font-display font-bold text-white font-mono-tabular">
                   Risultato: {match.score.team_1} - {match.score.team_2}
@@ -373,30 +372,6 @@ export const MatchHomeView: React.FC<{
               </div>
             )}
           </div>
-
-          {/* Quick Info Banner for Balancing Engine */}
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-white">
-                  Squadre Generate con Motore Matematico Gerarchico
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  Ottimizzazione combinatoria su ruoli, parità di forza e moltiplicatore portieri.
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsBalancingInfoOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/40 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Info Motore
-            </button>
-          </div>
         </div>
 
         {/* Bets Column */}
@@ -433,9 +408,9 @@ export const MatchHomeView: React.FC<{
                   <div className="grid grid-cols-3 gap-2">
                     {(
                       [
-                        { pick: '1' as BetPick, label: '1 · Gabry', odds: match.odds['1'] },
-                        { pick: 'X' as BetPick, label: 'X · Pari', odds: match.odds['X'] },
-                        { pick: '2' as BetPick, label: '2 · Piero', odds: match.odds['2'] },
+                        { pick: '1' as BetPick, label: '1 · Gabry', odds: liveOdds['1'] },
+                        { pick: 'X' as BetPick, label: 'X · Pari', odds: liveOdds['X'] },
+                        { pick: '2' as BetPick, label: '2 · Piero', odds: liveOdds['2'] },
                       ] as const
                     ).map((opt) => {
                       const isSelected =
@@ -621,10 +596,6 @@ export const MatchHomeView: React.FC<{
       <FutCardDetailModal
         player={inspectedPlayer}
         onClose={() => setInspectedPlayer(null)}
-      />
-      <BalancingInfoModal
-        isOpen={isBalancingInfoOpen}
-        onClose={() => setIsBalancingInfoOpen(false)}
       />
     </div>
   );

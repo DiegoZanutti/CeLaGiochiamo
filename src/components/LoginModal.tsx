@@ -113,7 +113,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {users.map((u) => {
-              const isDir = u.is_admin || u.email.toLowerCase().includes('diego');
+              const isDir = u.is_admin;
               return (
                 <button
                   key={u.uid}

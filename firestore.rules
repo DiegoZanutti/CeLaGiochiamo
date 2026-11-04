@@ -25,15 +25,10 @@ service cloud.firestore {
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
-    function isBootstrappedAdmin() {
-      return isVerifiedUser() && request.auth.token.email == 'diego.zanutti@gmail.com';
-    }
     function isAdmin() {
-      return isBootstrappedAdmin() || (
-        isVerifiedUser() &&
+      return isVerifiedUser() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true
-      );
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true;
     }
 
     // Validation Helpers
@@ -71,7 +66,7 @@ service cloud.firestore {
       data.keys().hasOnly([
         'id', 'name', 'nickname', 'avatar_url', 'claimed_by_uid', 'claim_status',
         'is_active', 'weights', 'wants_to_be_gk', 'computed', 'attr_votes_count', 'stats',
-        'initial_weights', 'manual_override', 'manual_weights', 'natural_weights', 'override_audit'
+        'initial_weights'
       ]) &&
       data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
       data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
@@ -85,11 +80,7 @@ service cloud.firestore {
       data.computed is map &&
       data.attr_votes_count is map &&
       data.stats is map &&
-      (!('initial_weights' in data) || data.initial_weights is map) &&
-      (!('manual_override' in data) || data.manual_override is bool) &&
-      (!('manual_weights' in data) || data.manual_weights is map) &&
-      (!('natural_weights' in data) || data.natural_weights is map) &&
-      (!('override_audit' in data) || data.override_audit is map);
+      (!('initial_weights' in data) || data.initial_weights is map);
     }
 
     function isValidUser(data) {
@@ -167,13 +158,16 @@ service cloud.firestore {
           existing().claim_status == 'UNCLAIMED' &&
           incoming().claim_status == 'PENDING_APPROVAL' &&
           incoming().claimed_by_uid == request.auth.uid &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['claimed_by_uid', 'claim_status'])
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'claimed_by_uid', 'claim_status', 'initial_weights',
+            'natural_weights', 'manual_override', 'manual_weights', 'override_audit'
+          ])
         ) ||
         (isVerifiedUser() &&
           incoming().diff(existing()).affectedKeys().hasOnly([
             'stats', 'attr_votes_count', 'weights', 'initial_weights', 'natural_weights',
-            'manual_override', 'computed', 'wants_to_be_gk', 'claim_status', 'claimed_by_uid',
-            'name', 'nickname', 'avatar_url', 'is_active'
+            'manual_override', 'manual_weights', 'override_audit', 'computed', 'wants_to_be_gk',
+            'claim_status', 'claimed_by_uid', 'name', 'nickname', 'avatar_url', 'is_active'
           ])
         )
       );
@@ -181,20 +175,16 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow get: if isValidId(uid) && isSignedIn();
       allow list: if isSignedIn() && (existing().uid == request.auth.uid || existing().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL', 'VALIDATED']);
-      allow create: if isValidId(uid) && isOwner(uid) && isValidUser(incoming()) &&
-        incoming().uid == request.auth.uid &&
-        (incoming().is_admin == false || isBootstrappedAdmin()) &&
-        (incoming().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL'] || isBootstrappedAdmin());
+      allow create: if isValidId(uid) && isOwner(uid) && isVerifiedUser() && isValidUser(incoming()) &&
+        incoming().uid == request.auth.uid;
       allow update: if isValidId(uid) && isValidUser(incoming()) &&
         incoming().uid == existing().uid &&
         incoming().created_at == existing().created_at && (
           isAdmin() ||
-          (isOwner(uid) &&
-            incoming().is_admin == existing().is_admin &&
-            (incoming().auth_status in ['UNCLAIMED', 'PENDING_APPROVAL'] || existing().auth_status == 'VALIDATED') &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['linked_player_id', 'auth_status', 'display_name'])
+          (isVerifiedUser() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['linked_player_id', 'auth_status', 'display_name', 'is_admin', 'email'])
           )
         );
       allow delete: if isValidId(uid) && isAdmin();

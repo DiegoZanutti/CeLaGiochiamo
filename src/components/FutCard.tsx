@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Player } from '../types/models';
 import {
   computePlayerMetrics,
@@ -8,6 +8,7 @@ import {
   weightToFutStat,
 } from '../engine/mathEngine';
 import { useApp } from '../context/AppContext';
+import { renderFutCardCutout } from '../lib/imageProcessor';
 import { X, Shield, Crosshair, Award } from 'lucide-react';
 
 interface FutCardProps {
@@ -117,6 +118,24 @@ export const FutCard: React.FC<FutCardProps> = ({
   const isCompact = size === 'sm';
   const Wrapper = onClick ? 'button' : 'div';
 
+  const [futPortraitUrl, setFutPortraitUrl] = useState<string>(player.avatar_url || '');
+
+  useEffect(() => {
+    let active = true;
+    if (!player.avatar_url) {
+      setFutPortraitUrl('');
+      return;
+    }
+    renderFutCardCutout(player.avatar_url).then((processedUrl) => {
+      if (active) {
+        setFutPortraitUrl(processedUrl);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [player.avatar_url]);
+
   return (
     <Wrapper
       type={onClick ? 'button' : undefined}
@@ -153,12 +172,12 @@ export const FutCard: React.FC<FutCardProps> = ({
 
           <linearGradient id={`portraitMask_${uniqueId}`} x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="white" stopOpacity="1" />
-            <stop offset="72%" stopColor="white" stopOpacity="0.95" />
-            <stop offset="96%" stopColor="white" stopOpacity="0" />
+            <stop offset="80%" stopColor="white" stopOpacity="0.98" />
+            <stop offset="100%" stopColor="white" stopOpacity="0" />
           </linearGradient>
 
           <mask id={`mask_photo_${uniqueId}`}>
-            <rect x="65" y="20" width="180" height="162" fill={`url(#portraitMask_${uniqueId})`} />
+            <rect x="0" y="0" width="260" height="206" fill={`url(#portraitMask_${uniqueId})`} />
           </mask>
         </defs>
 
@@ -171,7 +190,7 @@ export const FutCard: React.FC<FutCardProps> = ({
           strokeLinejoin="round"
         />
 
-        {/* Clipped Interior Details */}
+        {/* Clipped Interior Details (Clipped strictly to the FUT Shield Border) */}
         <g clipPath={`url(#clip_${uniqueId})`}>
           {/* Dynamic Diagonal Energy Ribbons (Matching reference image) */}
           <path
@@ -203,14 +222,14 @@ export const FutCard: React.FC<FutCardProps> = ({
             opacity="0.5"
           />
 
-          {/* Player Photo or Classic FUT Silhouette on Right */}
-          {player.avatar_url ? (
+          {/* Player Photo Clipped Exclusively by the FUT Card Shield Borders */}
+          {futPortraitUrl ? (
             <image
-              href={player.avatar_url}
-              x="76"
-              y="22"
-              width="162"
-              height="160"
+              href={futPortraitUrl}
+              x="0"
+              y="0"
+              width="260"
+              height="206"
               preserveAspectRatio="xMidYMin slice"
               mask={`url(#mask_photo_${uniqueId})`}
             />
@@ -232,28 +251,7 @@ export const FutCard: React.FC<FutCardProps> = ({
           )}
 
           {/* Soft Darkening Gradient from Waist Down for Crisp Text Readability */}
-          <rect x="0" y="122" width="260" height="245" fill={`url(#fade_${uniqueId})`} />
-
-          {/* Left Column Decorative Badges: Tricolore Flag & Club Crest */}
-          {/* Mini Tricolore Flag */}
-          <g transform="translate(38, 102)">
-            <rect x="0" y="0" width="32" height="19" rx="2.5" fill="#0f172a" stroke={vis.innerStroke} strokeWidth="1" />
-            <rect x="1" y="1" width="10" height="17" fill="#10b981" />
-            <rect x="11" y="1" width="10" height="17" fill="#f8fafc" />
-            <rect x="21" y="1" width="10" height="17" fill="#ef4444" />
-          </g>
-
-          {/* Circular Club Ball Emblem */}
-          <g transform="translate(54, 142)">
-            <circle r="16" fill={vis.badgeRing} stroke={vis.outerStroke} strokeWidth="1.5" />
-            <circle r="11.5" fill="#f8fafc" />
-            <circle r="4.2" fill="#0f172a" />
-            <circle cx="0" cy="-7" r="2.1" fill="#0f172a" />
-            <circle cx="6.5" cy="-2.1" r="2.1" fill="#0f172a" />
-            <circle cx="4.2" cy="5.6" r="2.1" fill="#0f172a" />
-            <circle cx="-4.2" cy="5.6" r="2.1" fill="#0f172a" />
-            <circle cx="-6.5" cy="-2.1" r="2.1" fill="#0f172a" />
-          </g>
+          <rect x="0" y="132" width="260" height="238" fill={`url(#fade_${uniqueId})`} />
 
           {/* Horizontal Divider Below Player Name (y=204 -> 55.1% of 370) */}
           <line
@@ -308,7 +306,7 @@ export const FutCard: React.FC<FutCardProps> = ({
       {/* HTML Text Overlay Aligned with Height-Relative Coordinates to the 260x370 Crest */}
       <div className="absolute inset-0 pointer-events-none">
         {/* Top-Left Rating & Position */}
-        <div className="absolute top-[10.5%] left-[12.5%] flex flex-col items-center w-[32%]">
+        <div className="absolute top-[14.5%] left-[8.5%] flex flex-col items-center w-[30%]">
           <span
             style={{ color: vis.textPrimary }}
             className={`font-display font-extrabold leading-[0.88] tracking-tight tabular-nums ${
