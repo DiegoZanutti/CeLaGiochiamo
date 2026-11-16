@@ -1,11 +1,22 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { BetPick, Player, TeamLineup } from '../types/models';
-import { computeMatchOdds, getPlayerFutOverall } from '../engine/mathEngine';
+import {
+  computeMatchOdds,
+  getPlayerFutOverall,
+  recalculateAfterManualSwap,
+} from '../engine/mathEngine';
 import { VotingModal } from './VotingModal';
 import { FutCardDetailModal } from './FutCard';
 import {
+  buildPairedTeamRows,
+  computeLiveTeamAvgAttrs,
+  DualTeamKiviatChart,
+  DualTeamKiviatChartProps,
+} from './AdminBackofficeView';
+import {
   Calendar,
+  Check,
   CheckCircle2,
   Coins,
   Lock,
@@ -55,6 +66,8 @@ export const MatchHomeView: React.FC<{
   const [betAmount, setBetAmount] = useState<number>(25);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
+  const [pinnedPairIndex, setPinnedPairIndex] = useState<number | null>(null);
+  const [hoveredPairIndex, setHoveredPairIndex] = useState<number | null>(null);
 
   const playerMap = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -138,6 +151,38 @@ export const MatchHomeView: React.FC<{
   const statusLabel = match
     ? STATUS_LABELS[match.status] ?? 'Scommesse Aperte'
     : 'In Organizzazione';
+
+  const activeBalancePercentage = useMemo(() => {
+    if (!match) return 100;
+    const convocatiPlayers = match.convocati_ids
+      .map((id) => playerMap.get(id))
+      .filter((p): p is Player => Boolean(p));
+    if (convocatiPlayers.length !== 10) return 100;
+    try {
+      const evaluated = recalculateAfterManualSwap(
+        convocatiPlayers,
+        { gk_id: match.team_1.gk_id, outfield_ids: match.team_1.outfield_ids },
+        { gk_id: match.team_2.gk_id, outfield_ids: match.team_2.outfield_ids },
+        config
+      );
+      return evaluated.micro.balance_percentage;
+    } catch {
+      return 100;
+    }
+  }, [match, playerMap, config]);
+
+  const getRoleBadgeClasses = (role: 'POR' | 'DIF' | 'TUT' | 'ATT') => {
+    if (role === 'POR') {
+      return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    }
+    if (role === 'DIF') {
+      return 'bg-sky-500/20 text-sky-300 border border-sky-500/30';
+    }
+    if (role === 'ATT') {
+      return 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+    }
+    return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+  };
 
   const triggerLogin = () => {
     if (onOpenLogin) {
@@ -268,8 +313,8 @@ export const MatchHomeView: React.FC<{
                   <div className="pointer-events-none absolute top-4 left-5 right-5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 bg-slate-950/55 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/15">
                       <span className="w-2 h-2 rounded-full bg-white shadow" />
-                      <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                        I Gabry
+                      <span className="text-[11px] font-bold text-white tracking-wider">
+                        i Gabry
                       </span>
                     </div>
                     {match.score.team_1 !== null && (
@@ -358,8 +403,8 @@ export const MatchHomeView: React.FC<{
                   <div className="pointer-events-none absolute bottom-4 left-5 right-5 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 bg-slate-950/65 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-sky-400/25">
                       <span className="w-2 h-2 rounded-full bg-sky-400 shadow" />
-                      <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                        I Piero
+                      <span className="text-[11px] font-bold text-white tracking-wider">
+                        i Piero
                       </span>
                     </div>
                     {match.score.team_2 !== null && (
@@ -408,9 +453,9 @@ export const MatchHomeView: React.FC<{
                   <div className="grid grid-cols-3 gap-2">
                     {(
                       [
-                        { pick: '1' as BetPick, label: '1 · I Gabry', odds: liveOdds['1'] },
+                        { pick: '1' as BetPick, label: '1 · i Gabry', odds: liveOdds['1'] },
                         { pick: 'X' as BetPick, label: 'X · Pari', odds: liveOdds['X'] },
-                        { pick: '2' as BetPick, label: '2 · I Piero', odds: liveOdds['2'] },
+                        { pick: '2' as BetPick, label: '2 · i Piero', odds: liveOdds['2'] },
                       ] as const
                     ).map((opt) => {
                       const hasActiveLockedBet = Boolean(
@@ -592,7 +637,7 @@ export const MatchHomeView: React.FC<{
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono-tabular">
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
-                      <div className="text-[10px] text-slate-400">1 · I Gabry</div>
+                      <div className="text-[10px] text-slate-400">1 · i Gabry</div>
                       <div className="font-bold text-white mt-0.5">{betDistribution.pct1}%</div>
                     </div>
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
@@ -600,7 +645,7 @@ export const MatchHomeView: React.FC<{
                       <div className="font-bold text-amber-300 mt-0.5">{betDistribution.pctX}%</div>
                     </div>
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
-                      <div className="text-[10px] text-slate-400">2 · I Piero</div>
+                      <div className="text-[10px] text-slate-400">2 · i Piero</div>
                       <div className="font-bold text-sky-400 mt-0.5">{betDistribution.pct2}%</div>
                     </div>
                   </div>
@@ -610,6 +655,280 @@ export const MatchHomeView: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Barra Formazione Attiva + Confronto Squadre & Grafico Radar (Sotto il Campo) */}
+      {match && (() => {
+        const sortMode: 'A' | 'B' = match.selected_solution === 'A' ? 'A' : 'B';
+        const pairedRows = buildPairedTeamRows(
+          match.team_1,
+          match.team_2,
+          playerMap,
+          config,
+          sortMode
+        );
+        const avgWeights1 = computeLiveTeamAvgAttrs(match.team_1, playerMap);
+        const avgWeights2 = computeLiveTeamAvgAttrs(match.team_2, playerMap);
+
+        const displayedPairIndex =
+          hoveredPairIndex !== null ? hoveredPairIndex : pinnedPairIndex;
+        const activePair =
+          displayedPairIndex !== null ? pairedRows[displayedPairIndex] ?? null : null;
+        const isPairActive = Boolean(activePair?.slot1 && activePair?.slot2);
+        const isTeamAvgSelected = displayedPairIndex === null;
+
+        const kiviatProps: DualTeamKiviatChartProps =
+          isPairActive && activePair?.slot1 && activePair?.slot2
+            ? {
+                mode: 'PLAYER_PAIR',
+                label1: activePair.slot1.player.name,
+                sublabel1: `${activePair.slot1.role} · FUT ${activePair.slot1.futOvr}`,
+                weights1: activePair.slot1.player.weights,
+                label2: activePair.slot2.player.name,
+                sublabel2: `${activePair.slot2.role} · FUT ${activePair.slot2.futOvr}`,
+                weights2: activePair.slot2.player.weights,
+                isGkPair: activePair.slot1.isGk || activePair.slot2.isGk,
+              }
+            : {
+                mode: 'TEAM_AVG',
+                label1: 'i Gabry',
+                sublabel1: `Forza ${match.team_1.total_power.toFixed(1)}`,
+                weights1: avgWeights1,
+                label2: 'i Piero',
+                sublabel2: `Forza ${match.team_2.total_power.toFixed(1)}`,
+                weights2: avgWeights2,
+                isGkPair: false,
+              };
+
+        return (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 shadow-lg">
+            {/* Barra della Formazione Attiva */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-950 border border-slate-800 rounded-2xl">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-semibold">
+                  <Check className="w-3.5 h-3.5" />
+                  {match.selected_solution === 'A'
+                    ? 'Formazione Attiva: Proposta A (Equilibrata)'
+                    : match.selected_solution === 'B'
+                      ? 'Formazione Attiva: Proposta B (Ruoli Speculari)'
+                      : 'Formazione Attiva: Scambi Personalizzati (Custom)'}
+                </span>
+                <span className="font-semibold text-emerald-400 font-mono-tabular">
+                  Indice di Equilibrio: {activeBalancePercentage}%
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400 font-medium">Quote Match:</span>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold font-mono-tabular">
+                  1: {liveOdds['1'].toFixed(2)}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 font-bold font-mono-tabular">
+                  X: {liveOdds['X'].toFixed(2)}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-300 border border-sky-500/20 font-bold font-mono-tabular">
+                  2: {liveOdds['2'].toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Griglia Formazione Attiva (Verde | Blu) + Grafico Radar Kiviat */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+              {/* Colonna Sinistra: Due Contenitori Squadra Distinti (7/12) */}
+              <div
+                className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 items-stretch"
+                onMouseLeave={() => setHoveredPairIndex(null)}
+              >
+                {/* Contenitore Squadra i Gabry (Sfondo Verde Pulito) */}
+                <div className="rounded-2xl bg-emerald-950/25 border border-emerald-500/30 p-3 flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinnedPairIndex(null);
+                      setHoveredPairIndex(null);
+                    }}
+                    title="Clicca per mostrare le medie di squadra sul grafico di Kiviat"
+                    className={`w-full mb-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer border-b-2 ${
+                      isTeamAvgSelected
+                        ? 'bg-emerald-500/25 border-emerald-400 shadow-sm ring-1 ring-emerald-400/40'
+                        : 'bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 shrink-0" />
+                      <h4 className="font-display font-bold text-emerald-100 text-base tracking-tight truncate">
+                        i Gabry
+                      </h4>
+                    </div>
+                    <span className="text-xs font-mono-tabular text-emerald-200/90 shrink-0">
+                      Forza{' '}
+                      <strong className="text-emerald-300 font-bold">
+                        {match.team_1.total_power.toFixed(1)}
+                      </strong>
+                    </span>
+                  </button>
+
+                  <div className="space-y-2">
+                    {pairedRows.map((row) => {
+                      const isHovered = hoveredPairIndex === row.rowIndex;
+                      const isPinned = pinnedPairIndex === row.rowIndex;
+                      const isActiveRow = displayedPairIndex === row.rowIndex;
+                      const s1 = row.slot1;
+
+                      return (
+                        <div
+                          key={`home-gabry-row-${row.rowIndex}`}
+                          onMouseEnter={() => setHoveredPairIndex(row.rowIndex)}
+                          onClick={() => setPinnedPairIndex(row.rowIndex)}
+                          tabIndex={0}
+                          role="button"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setPinnedPairIndex(row.rowIndex);
+                            }
+                          }}
+                          aria-label={`Confronto diretto: ${s1?.player.name ?? ''} contro ${row.slot2?.player.name ?? ''}`}
+                          className={`h-[46px] px-3 rounded-xl border transition-all flex items-center justify-between gap-2 min-w-0 select-none cursor-pointer ${
+                            isActiveRow
+                              ? 'bg-slate-900 border-emerald-400 shadow-md ring-1 ring-emerald-400/40'
+                              : isPinned
+                                ? 'bg-slate-900/95 border-emerald-500/60'
+                                : isHovered
+                                  ? 'bg-slate-900 border-emerald-400/70'
+                                  : 'bg-slate-950/90 border-slate-800/90 hover:border-emerald-500/40'
+                          }`}
+                        >
+                          {s1 ? (
+                            <>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-mono-tabular font-bold text-[10px] shrink-0 ${getRoleBadgeClasses(
+                                    s1.role
+                                  )}`}
+                                >
+                                  {s1.role}
+                                </span>
+                                <span className="font-semibold text-white text-xs sm:text-sm truncate">
+                                  {s1.player.name}
+                                </span>
+                              </div>
+                              <span
+                                className={`text-xs font-mono-tabular font-bold shrink-0 ${
+                                  s1.isGk ? 'text-amber-300' : 'text-emerald-400'
+                                }`}
+                              >
+                                FUT {s1.futOvr}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-500 italic">—</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Contenitore Squadra i Piero (Sfondo Blu Pulito) */}
+                <div className="rounded-2xl bg-sky-950/25 border border-sky-500/30 p-3 flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinnedPairIndex(null);
+                      setHoveredPairIndex(null);
+                    }}
+                    title="Clicca per mostrare le medie di squadra sul grafico di Kiviat"
+                    className={`w-full mb-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer border-b-2 ${
+                      isTeamAvgSelected
+                        ? 'bg-sky-500/25 border-sky-400 shadow-sm ring-1 ring-sky-400/40'
+                        : 'bg-sky-500/15 border-sky-500/40 hover:bg-sky-500/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-sky-400 shrink-0" />
+                      <h4 className="font-display font-bold text-sky-100 text-base tracking-tight truncate">
+                        i Piero
+                      </h4>
+                    </div>
+                    <span className="text-xs font-mono-tabular text-sky-200/90 shrink-0">
+                      Forza{' '}
+                      <strong className="text-sky-300 font-bold">
+                        {match.team_2.total_power.toFixed(1)}
+                      </strong>
+                    </span>
+                  </button>
+
+                  <div className="space-y-2">
+                    {pairedRows.map((row) => {
+                      const isHovered = hoveredPairIndex === row.rowIndex;
+                      const isPinned = pinnedPairIndex === row.rowIndex;
+                      const isActiveRow = displayedPairIndex === row.rowIndex;
+                      const s2 = row.slot2;
+
+                      return (
+                        <div
+                          key={`home-piero-row-${row.rowIndex}`}
+                          onMouseEnter={() => setHoveredPairIndex(row.rowIndex)}
+                          onClick={() => setPinnedPairIndex(row.rowIndex)}
+                          tabIndex={0}
+                          role="button"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setPinnedPairIndex(row.rowIndex);
+                            }
+                          }}
+                          aria-label={`Confronto diretto: ${row.slot1?.player.name ?? ''} contro ${s2?.player.name ?? ''}`}
+                          className={`h-[46px] px-3 rounded-xl border transition-all flex items-center justify-between gap-2 min-w-0 select-none cursor-pointer ${
+                            isActiveRow
+                              ? 'bg-slate-900 border-sky-400 shadow-md ring-1 ring-sky-400/40'
+                              : isPinned
+                                ? 'bg-slate-900/95 border-sky-500/60'
+                                : isHovered
+                                  ? 'bg-slate-900 border-sky-400/70'
+                                  : 'bg-slate-950/90 border-slate-800/90 hover:border-sky-500/40'
+                          }`}
+                        >
+                          {s2 ? (
+                            <>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-mono-tabular font-bold text-[10px] shrink-0 ${getRoleBadgeClasses(
+                                    s2.role
+                                  )}`}
+                                >
+                                  {s2.role}
+                                </span>
+                                <span className="font-semibold text-white text-xs sm:text-sm truncate">
+                                  {s2.player.name}
+                                </span>
+                              </div>
+                              <span
+                                className={`text-xs font-mono-tabular font-bold shrink-0 ${
+                                  s2.isGk ? 'text-amber-300' : 'text-sky-400'
+                                }`}
+                              >
+                                FUT {s2.futOvr}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-500 italic">—</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Colonna Destra: Grafico di Kiviat (5/12) */}
+              <div className="lg:col-span-5">
+                <DualTeamKiviatChart {...kiviatProps} />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modals */}
       <VotingModal

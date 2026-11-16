@@ -364,7 +364,7 @@ export const MatchHistoryView: React.FC = () => {
             if (wasPresent) {
               if (m.score.winner === null || m.status === 'IN_PLAY') {
                 matchOutcomeBadge = {
-                  text: inT1 ? 'In campo (I Gabry)' : 'In campo (I Piero)',
+                  text: inT1 ? 'In campo (i Gabry)' : 'In campo (i Piero)',
                   cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
                 };
               } else if (m.score.winner === 'X') {
@@ -455,7 +455,7 @@ export const MatchHistoryView: React.FC = () => {
                           </div>
                         )}
                         <div className="text-[10px] text-slate-400">
-                          I Gabry vs I Piero
+                          i Gabry vs i Piero
                         </div>
                       </div>
 
@@ -547,14 +547,14 @@ export const MatchHistoryView: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {renderTeamFormationCard(
-                        `I Gabry ${
+                        `i Gabry ${
                           m.score.team_1 !== null ? `(${m.score.team_1} Gol)` : ''
                         }`,
                         'bg-emerald-400',
                         m.team_1
                       )}
                       {renderTeamFormationCard(
-                        `I Piero ${
+                        `i Piero ${
                           m.score.team_2 !== null ? `(${m.score.team_2} Gol)` : ''
                         }`,
                         'bg-sky-400',

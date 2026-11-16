@@ -10,6 +10,7 @@ import {
 } from '../types/models';
 import {
   computeMatchOdds,
+  computePlayerMetrics,
   futStatToWeight,
   getPlayerFutOverall,
   getPlayerInitialFutOverall,
@@ -30,6 +31,7 @@ import {
   Clock,
   Database,
   Edit3,
+  GripVertical,
   HelpCircle,
   Info,
   MapPin,
@@ -330,10 +332,10 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     recommended: 'Valore consigliato: 20 Token',
   },
   odd_1: {
-    label: 'Quota Base Vittoria I Gabry',
+    label: 'Quota Base Vittoria i Gabry',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de I Gabry quando le due squadre sono perfettamente alla pari.',
+      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de i Gabry quando le due squadre sono perfettamente alla pari.',
     recommended: 'Valore tipico: 1.85',
   },
   odd_X: {
@@ -344,10 +346,10 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     recommended: 'Valore tipico: 3.20',
   },
   odd_2: {
-    label: 'Quota Base Vittoria I Piero',
+    label: 'Quota Base Vittoria i Piero',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de I Piero in condizione di parità teorica.',
+      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de i Piero in condizione di parità teorica.',
     recommended: 'Valore tipico: 1.85',
   },
   dynamic_odds_sensitivity: {
@@ -1048,7 +1050,7 @@ export const AdminBackofficeView: React.FC<{
                             const inT1 = team1AllIds.includes(id);
                             return (
                               <option key={id} value={id}>
-                                {inT1 ? '[I Gabry]' : '[I Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                                {inT1 ? '[i Gabry]' : '[i Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
                               </option>
                             );
                           })}
@@ -1097,23 +1099,23 @@ export const AdminBackofficeView: React.FC<{
                       </div>
                     </div>
 
-                    {/* 2. Scambio Rapido tra I Gabry e I Piero in OPEN_FOR_BETS */}
+                    {/* 2. Scambio Rapido tra i Gabry e i Piero in OPEN_FOR_BETS */}
                     <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
                       <div className="text-xs font-bold text-white flex items-center gap-1.5">
                         <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
-                        <span>Modifica Formazioni (Scambio I Gabry ↔ I Piero)</span>
+                        <span>Modifica Formazioni (Scambio i Gabry ↔ i Piero)</span>
                       </div>
                       <p className="text-[11px] text-slate-400">
                         Inverti due giocatori tra le due squadre. Anche questo cambio formazione ricalcola le quote e applica la preferenza sulle scommesse.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <select
-                          aria-label="Giocatore I Gabry"
+                          aria-label="Giocatore i Gabry"
                           value={swapP1}
                           onChange={(e) => setSwapP1(e.target.value)}
                           className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
                         >
-                          <option value="">I Gabry...</option>
+                          <option value="">i Gabry...</option>
                           {team1AllIds.map((id) => {
                             const p = playerMap.get(id);
                             return (
@@ -1127,12 +1129,12 @@ export const AdminBackofficeView: React.FC<{
                         <span className="text-emerald-400 font-bold text-xs">↔</span>
 
                         <select
-                          aria-label="Giocatore I Piero"
+                          aria-label="Giocatore i Piero"
                           value={swapP2}
                           onChange={(e) => setSwapP2(e.target.value)}
                           className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
                         >
-                          <option value="">I Piero...</option>
+                          <option value="">i Piero...</option>
                           {team2AllIds.map((id) => {
                             const p = playerMap.get(id);
                             return (
@@ -1182,7 +1184,7 @@ export const AdminBackofficeView: React.FC<{
                       <div className="flex flex-wrap items-center gap-3 shrink-0">
                         <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
                           <label htmlFor="score-g1" className="text-xs text-slate-300">
-                            Gol I Gabry:
+                            Gol i Gabry:
                           </label>
                           <input
                             id="score-g1"
@@ -1199,7 +1201,7 @@ export const AdminBackofficeView: React.FC<{
                         </div>
                         <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
                           <label htmlFor="score-g2" className="text-xs text-slate-300">
-                            Gol I Piero:
+                            Gol i Piero:
                           </label>
                           <input
                             id="score-g2"
@@ -1253,7 +1255,7 @@ export const AdminBackofficeView: React.FC<{
                               const inT1 = team1AllIds.includes(id);
                               return (
                                 <option key={id} value={id}>
-                                  {inT1 ? '[I Gabry]' : '[I Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                                  {inT1 ? '[i Gabry]' : '[i Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
                                 </option>
                               );
                             })}
@@ -1302,23 +1304,23 @@ export const AdminBackofficeView: React.FC<{
                         </div>
                       </div>
 
-                      {/* 2. Scambio Rapido tra I Gabry e I Piero in IN_PLAY */}
+                      {/* 2. Scambio Rapido tra i Gabry e i Piero in IN_PLAY */}
                       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
                         <div className="text-xs font-bold text-white flex items-center gap-1.5">
                           <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
-                          <span>Modifica Formazioni in Corso (Scambio I Gabry ↔ I Piero)</span>
+                          <span>Modifica Formazioni in Corso (Scambio i Gabry ↔ i Piero)</span>
                         </div>
                         <p className="text-[11px] text-slate-400">
                           Inverti due giocatori tra le due squadre durante lo Stadio 3.0. Anche in questo caso le quote e le scommesse si adeguano automaticamente.
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
                           <select
-                            aria-label="Giocatore I Gabry"
+                            aria-label="Giocatore i Gabry"
                             value={swapP1}
                             onChange={(e) => setSwapP1(e.target.value)}
                             className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
                           >
-                            <option value="">I Gabry...</option>
+                            <option value="">i Gabry...</option>
                             {team1AllIds.map((id) => {
                               const p = playerMap.get(id);
                               return (
@@ -1332,12 +1334,12 @@ export const AdminBackofficeView: React.FC<{
                           <span className="text-emerald-400 font-bold text-xs">↔</span>
 
                           <select
-                            aria-label="Giocatore I Piero"
+                            aria-label="Giocatore i Piero"
                             value={swapP2}
                             onChange={(e) => setSwapP2(e.target.value)}
                             className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
                           >
-                            <option value="">I Piero...</option>
+                            <option value="">i Piero...</option>
                             {team2AllIds.map((id) => {
                               const p = playerMap.get(id);
                               return (
@@ -1553,6 +1555,7 @@ export const AdminBackofficeView: React.FC<{
               swapP2={swapP2}
               setSwapP2={setSwapP2}
               onSwapSubmit={handleSwapSubmit}
+              onDirectSwap={swapPlayersBetweenTeams}
               onOpenInfoModal={() => {
                 setInfoModalTab('STAGES');
                 setIsInfoModalOpen(true);
@@ -3180,8 +3183,397 @@ interface UnifiedProposalsCardProps {
   swapP2: string;
   setSwapP2: (id: string) => void;
   onSwapSubmit: () => void;
+  onDirectSwap?: (p1Id: string, p2Id: string) => Promise<void> | void;
   onOpenInfoModal: () => void;
 }
+
+interface OrderedTeamSlot {
+  player: Player;
+  role: 'POR' | 'DIF' | 'TUT' | 'ATT';
+  isGk: boolean;
+  wasExcessGkConverted: boolean;
+  C_i: -1 | 0 | 1;
+  delta_i: number;
+  M_i: number;
+  futOvr: number;
+}
+
+export interface PairedTeamRow {
+  rowIndex: number;
+  slot1: OrderedTeamSlot | null;
+  slot2: OrderedTeamSlot | null;
+}
+
+const ROLE_SORT_RANK: Record<'POR' | 'DIF' | 'TUT' | 'ATT', number> = {
+  POR: 0,
+  DIF: 1,
+  TUT: 2,
+  ATT: 3,
+};
+
+export function buildOrderedTeamSlots(
+  team: { gk_id: string | null; outfield_ids: string[] },
+  playerMap: Map<string, Player>,
+  config: GlobalConfig,
+  sortMode: 'A' | 'B' = 'B',
+  customOrder?: string[]
+): OrderedTeamSlot[] {
+  const allSlots: OrderedTeamSlot[] = [];
+
+  if (team.gk_id) {
+    const gkPlayer = playerMap.get(team.gk_id);
+    if (gkPlayer) {
+      const m = computePlayerMetrics(gkPlayer.weights, gkPlayer.wants_to_be_gk, config);
+      allSlots.push({
+        player: gkPlayer,
+        role: 'POR',
+        isGk: true,
+        wasExcessGkConverted: false,
+        C_i: m.C_i,
+        delta_i: m.delta_i,
+        M_i: gkPlayer.weights.portiere,
+        futOvr: weightToFutStat(gkPlayer.weights.portiere),
+      });
+    }
+  }
+
+  for (const id of team.outfield_ids) {
+    const p = playerMap.get(id);
+    if (!p) continue;
+    const m = computePlayerMetrics(p.weights, p.wants_to_be_gk, config);
+    allSlots.push({
+      player: p,
+      role: m.computed.role_label,
+      isGk: false,
+      wasExcessGkConverted: p.wants_to_be_gk,
+      C_i: m.C_i,
+      delta_i: m.delta_i,
+      M_i: m.M_i,
+      futOvr: weightToFutStat(m.M_i),
+    });
+  }
+
+  // Ordina secondo il criterio richiesto per la proposta:
+  // - Proposta A: 1° Forza FUT decrescente, 2° Ruolo (POR -> DIF -> TUT -> ATT), 3° Forza continua M_i decrescente
+  // - Proposta B: 1° Ruolo (POR -> DIF -> TUT -> ATT), 2° Forza FUT decrescente, 3° Forza continua M_i decrescente
+  const sortedByDefault = [...allSlots].sort((a, b) => {
+    if (sortMode === 'A') {
+      if (b.futOvr !== a.futOvr) return b.futOvr - a.futOvr;
+      const roleDiff = ROLE_SORT_RANK[a.role] - ROLE_SORT_RANK[b.role];
+      if (roleDiff !== 0) return roleDiff;
+      return b.M_i - a.M_i;
+    } else {
+      const roleDiff = ROLE_SORT_RANK[a.role] - ROLE_SORT_RANK[b.role];
+      if (roleDiff !== 0) return roleDiff;
+      if (b.futOvr !== a.futOvr) return b.futOvr - a.futOvr;
+      return b.M_i - a.M_i;
+    }
+  });
+
+  if (customOrder && customOrder.length > 0) {
+    const slotById = new Map(sortedByDefault.map((s) => [s.player.id, s]));
+    const ordered: OrderedTeamSlot[] = [];
+    const usedIds = new Set<string>();
+
+    for (const id of customOrder) {
+      const found = slotById.get(id);
+      if (found && !usedIds.has(id)) {
+        ordered.push(found);
+        usedIds.add(id);
+      }
+    }
+    for (const s of sortedByDefault) {
+      if (!usedIds.has(s.player.id)) {
+        ordered.push(s);
+        usedIds.add(s.player.id);
+      }
+    }
+    return ordered;
+  }
+
+  return sortedByDefault;
+}
+
+export function buildPairedTeamRows(
+  team1: { gk_id: string | null; outfield_ids: string[] },
+  team2: { gk_id: string | null; outfield_ids: string[] },
+  playerMap: Map<string, Player>,
+  config: GlobalConfig,
+  sortMode: 'A' | 'B' = 'B',
+  customOrder1?: string[],
+  customOrder2?: string[]
+): PairedTeamRow[] {
+  const slots1 = buildOrderedTeamSlots(team1, playerMap, config, sortMode, customOrder1);
+  const slots2 = buildOrderedTeamSlots(team2, playerMap, config, sortMode, customOrder2);
+  const maxRows = Math.max(slots1.length, slots2.length);
+  const rows: PairedTeamRow[] = [];
+
+  for (let i = 0; i < maxRows; i++) {
+    rows.push({
+      rowIndex: i,
+      slot1: slots1[i] ?? null,
+      slot2: slots2[i] ?? null,
+    });
+  }
+  return rows;
+}
+
+export function computeLiveTeamAvgAttrs(
+  team: { gk_id: string | null; outfield_ids: string[] },
+  playerMap: Map<string, Player>
+): PlayerWeights {
+  const outfieldPlayers = team.outfield_ids
+    .map((id) => playerMap.get(id))
+    .filter((p): p is Player => Boolean(p));
+  const gkPlayer = team.gk_id ? playerMap.get(team.gk_id) ?? null : null;
+
+  const count = outfieldPlayers.length;
+  if (count === 0) {
+    return {
+      tiro: 0.5,
+      velocita: 0.5,
+      passaggio: 0.5,
+      resistenza: 0.5,
+      difesa: 0.5,
+      portiere: gkPlayer ? gkPlayer.weights.portiere : 0.5,
+    };
+  }
+
+  const sum = outfieldPlayers.reduce(
+    (acc, p) => ({
+      tiro: acc.tiro + p.weights.tiro,
+      velocita: acc.velocita + p.weights.velocita,
+      passaggio: acc.passaggio + p.weights.passaggio,
+      resistenza: acc.resistenza + p.weights.resistenza,
+      difesa: acc.difesa + p.weights.difesa,
+    }),
+    { tiro: 0, velocita: 0, passaggio: 0, resistenza: 0, difesa: 0 }
+  );
+
+  const avgGk = gkPlayer
+    ? gkPlayer.weights.portiere
+    : outfieldPlayers.reduce((acc, p) => acc + p.weights.portiere, 0) / count;
+
+  return {
+    tiro: sum.tiro / count,
+    velocita: sum.velocita / count,
+    passaggio: sum.passaggio / count,
+    resistenza: sum.resistenza / count,
+    difesa: sum.difesa / count,
+    portiere: avgGk,
+  };
+}
+
+export interface DualTeamKiviatChartProps {
+  mode: 'TEAM_AVG' | 'PLAYER_PAIR';
+  label1: string;
+  sublabel1?: string;
+  weights1: PlayerWeights;
+  label2: string;
+  sublabel2?: string;
+  weights2: PlayerWeights;
+  isGkPair?: boolean;
+}
+
+export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
+  mode,
+  label1,
+  sublabel1,
+  weights1,
+  label2,
+  sublabel2,
+  weights2,
+}) => {
+  const axes: Array<{ key: keyof PlayerWeights; short: string; full: string }> = [
+    { key: 'tiro', short: 'TIR', full: 'Tiro' },
+    { key: 'velocita', short: 'VEL', full: 'Velocità' },
+    { key: 'passaggio', short: 'PAS', full: 'Passaggio' },
+    { key: 'resistenza', short: 'RES', full: 'Resistenza' },
+    { key: 'difesa', short: 'DIF', full: 'Difesa' },
+  ];
+
+  const cx = 150;
+  const cy = 128;
+  const radius = 88;
+  const rings = [0.25, 0.5, 0.75, 1.0];
+
+  const getPoint = (index: number, value: number) => {
+    const angle = (Math.PI * 2 * index) / axes.length - Math.PI / 2;
+    const clamped = Math.max(0.08, Math.min(1, value));
+    const r = radius * clamped;
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    };
+  };
+
+  const pts1 = axes.map((a, idx) => getPoint(idx, weights1[a.key]));
+  const pts2 = axes.map((a, idx) => getPoint(idx, weights2[a.key]));
+
+  const poly1 = pts1.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const poly2 = pts2.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 flex flex-col justify-between gap-1.5 h-full">
+      {/* Header Compatto + Legenda Squadre / Giocatori */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <span
+            className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${
+              mode === 'PLAYER_PAIR' ? 'text-amber-300' : 'text-emerald-400'
+            }`}
+          >
+            {mode === 'PLAYER_PAIR' ? 'Confronto Diretto' : 'Medie Squadra'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs font-mono-tabular">
+          <div className="bg-slate-900/80 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-sm bg-emerald-400 shrink-0" />
+              <span className="font-semibold text-white text-xs truncate">
+                {label1}
+              </span>
+            </div>
+            {sublabel1 && (
+              <span className="text-[10px] text-emerald-300 font-bold shrink-0">
+                {sublabel1}
+              </span>
+            )}
+          </div>
+
+          <div className="bg-slate-900/80 border border-sky-500/30 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-sm bg-sky-400 shrink-0" />
+              <span className="font-semibold text-white text-xs truncate">
+                {label2}
+              </span>
+            </div>
+            {sublabel2 && (
+              <span className="text-[10px] text-sky-300 font-bold shrink-0">
+                {sublabel2}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* SVG Pentagon Radar Grande e Senza Spazi Vuoti */}
+      <div className="relative flex-1 flex items-center justify-center">
+        <svg
+          viewBox="15 2 270 232"
+          className="w-full max-w-[300px] h-[244px] mx-auto select-none overflow-visible"
+          role="img"
+          aria-label={`Confronto tra ${label1} e ${label2}`}
+        >
+          {/* Pentagono Concentrici */}
+          {rings.map((r) => {
+            const ringPts = axes
+              .map((_, idx) => {
+                const p = getPoint(idx, r);
+                return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+              })
+              .join(' ');
+            return (
+              <polygon
+                key={r}
+                points={ringPts}
+                fill="none"
+                stroke="rgba(148, 163, 184, 0.18)"
+                strokeWidth="1"
+                strokeDasharray={r < 1 ? '2,2' : undefined}
+              />
+            );
+          })}
+
+          {/* Assi ed Etichette con Valori FUT */}
+          {axes.map((axis, idx) => {
+            const end = getPoint(idx, 1.0);
+            const labelPos = getPoint(idx, 1.24);
+            const v1 = weightToFutStat(weights1[axis.key]);
+            const v2 = weightToFutStat(weights2[axis.key]);
+            return (
+              <g key={axis.key}>
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={end.x}
+                  y2={end.y}
+                  stroke="rgba(148, 163, 184, 0.22)"
+                  strokeWidth="1"
+                />
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y - 6}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="fill-slate-300 text-[10px] font-mono-tabular font-bold"
+                >
+                  {axis.short}
+                </text>
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y + 7}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="text-[11px] font-mono-tabular font-bold"
+                >
+                  <tspan className="fill-emerald-400">{v1}</tspan>
+                  <tspan className="fill-slate-500"> · </tspan>
+                  <tspan className="fill-sky-400">{v2}</tspan>
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Poligono Squadra 2 / i Piero (Sky Blue) */}
+          <polygon
+            points={poly2}
+            fill="rgba(56, 189, 248, 0.22)"
+            stroke="#38bdf8"
+            strokeWidth="2.4"
+            className="transition-all duration-150"
+          />
+
+          {/* Poligono Squadra 1 / i Gabry (Emerald) */}
+          <polygon
+            points={poly1}
+            fill="rgba(16, 185, 129, 0.24)"
+            stroke="#10b981"
+            strokeWidth="2.4"
+            className="transition-all duration-150"
+          />
+
+          {/* Vertici Squadra 2 */}
+          {pts2.map((p, i) => (
+            <circle
+              key={`p2-${i}`}
+              cx={p.x}
+              cy={p.y}
+              r="3.5"
+              fill="#38bdf8"
+              stroke="#020617"
+              strokeWidth="1"
+            />
+          ))}
+
+          {/* Vertici Squadra 1 */}
+          {pts1.map((p, i) => (
+            <circle
+              key={`p1-${i}`}
+              cx={p.x}
+              cy={p.y}
+              r="3.5"
+              fill="#34d399"
+              stroke="#020617"
+              strokeWidth="1"
+            />
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+};
 
 const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
   engineResult,
@@ -3198,8 +3590,51 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
   swapP2,
   setSwapP2,
   onSwapSubmit,
+  onDirectSwap,
   onOpenInfoModal,
 }) => {
+  const [pinnedPairIndex, setPinnedPairIndex] = useState<number | null>(null);
+  const [hoveredPairIndex, setHoveredPairIndex] = useState<number | null>(null);
+  const [customOrder1, setCustomOrder1] = useState<string[]>([]);
+  const [customOrder2, setCustomOrder2] = useState<string[]>([]);
+  const [dragSource, setDragSource] = useState<{
+    team: 1 | 2;
+    rowIndex: number;
+    playerId: string;
+  } | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<{
+    team: 1 | 2;
+    rowIndex: number;
+  } | null>(null);
+
+  const handleTabSwitch = (nextTab: 'A' | 'B' | 'CUSTOM') => {
+    setHoveredPairIndex(null);
+    setPinnedPairIndex(null);
+    setDragSource(null);
+    setDragOverTarget(null);
+    onTabChange(nextTab);
+  };
+
+  const handleSelectProposalAndResetOrder = (sol: 'A' | 'B') => {
+    const targetProposal =
+      sol === 'A' ? engineResult.proposal_A : engineResult.proposal_B;
+    const nextSlots1 = buildOrderedTeamSlots(
+      targetProposal.team_1,
+      playerMap,
+      config,
+      sol
+    );
+    const nextSlots2 = buildOrderedTeamSlots(
+      targetProposal.team_2,
+      playerMap,
+      config,
+      sol
+    );
+    setCustomOrder1(nextSlots1.map((s) => s.player.id));
+    setCustomOrder2(nextSlots2.map((s) => s.player.id));
+    onSelectProposal(sol);
+  };
+
   const oddsA = useMemo(
     () =>
       computeMatchOdds(
@@ -3248,72 +3683,480 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
     } catch {
       return engineResult.proposal_A.micro.balance_percentage;
     }
-  }, [match.convocati_ids, match.team_1, match.team_2, playerMap, config, engineResult.proposal_A.micro.balance_percentage]);
+  }, [
+    match.convocati_ids,
+    match.team_1,
+    match.team_2,
+    playerMap,
+    config,
+    engineResult.proposal_A.micro.balance_percentage,
+  ]);
 
-  const activeOdds = activeTab === 'A' ? oddsA : activeTab === 'B' ? oddsB : oddsCurrent;
+  const activeOdds =
+    activeTab === 'A' ? oddsA : activeTab === 'B' ? oddsB : oddsCurrent;
 
-  const renderTeamRoster = (
-    title: string,
-    power: number,
-    colorClass: string,
-    gkId: string | null,
-    outfieldIds: string[]
+  const getRoleBadgeClasses = (role: 'POR' | 'DIF' | 'TUT' | 'ATT') => {
+    if (role === 'POR') {
+      return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    }
+    if (role === 'DIF') {
+      return 'bg-sky-500/20 text-sky-300 border border-sky-500/30';
+    }
+    if (role === 'ATT') {
+      return 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+    }
+    return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+  };
+
+  const renderPairedProposalComparison = (
+    team1: { gk_id: string | null; outfield_ids: string[]; total_power: number },
+    team2: { gk_id: string | null; outfield_ids: string[]; total_power: number },
+    proposalMode: 'A' | 'B' | 'CUSTOM'
   ) => {
-    const gk = gkId ? playerMap.get(gkId) : null;
+    const baseSortMode: 'A' | 'B' =
+      proposalMode === 'A'
+        ? 'A'
+        : proposalMode === 'B'
+          ? 'B'
+          : match.selected_solution === 'A'
+            ? 'A'
+            : 'B';
+
+    const pairedRows = buildPairedTeamRows(
+      team1,
+      team2,
+      playerMap,
+      config,
+      baseSortMode,
+      proposalMode === 'CUSTOM' ? customOrder1 : undefined,
+      proposalMode === 'CUSTOM' ? customOrder2 : undefined
+    );
+
+    const isDraggable = proposalMode === 'CUSTOM';
+    const currentOrderedIds1 = pairedRows
+      .map((r) => r.slot1?.player.id)
+      .filter((id): id is string => Boolean(id));
+    const currentOrderedIds2 = pairedRows
+      .map((r) => r.slot2?.player.id)
+      .filter((id): id is string => Boolean(id));
+
+    const handleDropOnCard = (
+      targetTeam: 1 | 2,
+      targetRowIndex: number,
+      targetPlayerId: string | undefined
+    ) => {
+      if (!isDraggable || !dragSource || !targetPlayerId) {
+        setDragSource(null);
+        setDragOverTarget(null);
+        return;
+      }
+
+      if (
+        dragSource.team === targetTeam &&
+        dragSource.rowIndex === targetRowIndex
+      ) {
+        setDragSource(null);
+        setDragOverTarget(null);
+        return;
+      }
+
+      if (dragSource.team === targetTeam) {
+        // Riordina all'interno della stessa squadra
+        const nextOrder =
+          targetTeam === 1 ? [...currentOrderedIds1] : [...currentOrderedIds2];
+        const fromIdx = nextOrder.indexOf(dragSource.playerId);
+        const toIdx = nextOrder.indexOf(targetPlayerId);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const temp = nextOrder[fromIdx];
+          nextOrder[fromIdx] = nextOrder[toIdx];
+          nextOrder[toIdx] = temp;
+          if (targetTeam === 1) {
+            setCustomOrder1(nextOrder);
+            setCustomOrder2(currentOrderedIds2);
+          } else {
+            setCustomOrder1(currentOrderedIds1);
+            setCustomOrder2(nextOrder);
+          }
+          setPinnedPairIndex(targetRowIndex);
+        }
+      } else {
+        // Trascinamento tra le due squadre: scambia i due giocatori mantenendo la posizione della riga
+        const p1Id =
+          dragSource.team === 1 ? dragSource.playerId : targetPlayerId;
+        const p2Id =
+          dragSource.team === 2 ? dragSource.playerId : targetPlayerId;
+        const nextOrder1 = currentOrderedIds1.map((id) =>
+          id === p1Id ? p2Id : id
+        );
+        const nextOrder2 = currentOrderedIds2.map((id) =>
+          id === p2Id ? p1Id : id
+        );
+        setCustomOrder1(nextOrder1);
+        setCustomOrder2(nextOrder2);
+        setPinnedPairIndex(targetRowIndex);
+        if (onDirectSwap) {
+          onDirectSwap(p1Id, p2Id);
+        }
+      }
+
+      setDragSource(null);
+      setDragOverTarget(null);
+    };
+
+    const avgWeights1 = computeLiveTeamAvgAttrs(team1, playerMap);
+    const avgWeights2 = computeLiveTeamAvgAttrs(team2, playerMap);
+
+    // L'hover ha priorità temporanea; altrimenti resta fisso l'ultimo confronto cliccato (o le medie se null)
+    const displayedPairIndex =
+      hoveredPairIndex !== null ? hoveredPairIndex : pinnedPairIndex;
+    const activePair =
+      displayedPairIndex !== null ? pairedRows[displayedPairIndex] ?? null : null;
+    const isPairActive = Boolean(activePair?.slot1 && activePair?.slot2);
+
+    const kiviatProps: DualTeamKiviatChartProps =
+      isPairActive && activePair?.slot1 && activePair?.slot2
+        ? {
+            mode: 'PLAYER_PAIR',
+            label1: activePair.slot1.player.name,
+            sublabel1: `${activePair.slot1.role} · FUT ${activePair.slot1.futOvr}`,
+            weights1: activePair.slot1.player.weights,
+            label2: activePair.slot2.player.name,
+            sublabel2: `${activePair.slot2.role} · FUT ${activePair.slot2.futOvr}`,
+            weights2: activePair.slot2.player.weights,
+            isGkPair: activePair.slot1.isGk || activePair.slot2.isGk,
+          }
+        : {
+            mode: 'TEAM_AVG',
+            label1: 'i Gabry',
+            sublabel1: `Forza ${team1.total_power.toFixed(1)}`,
+            weights1: avgWeights1,
+            label2: 'i Piero',
+            sublabel2: `Forza ${team2.total_power.toFixed(1)}`,
+            weights2: avgWeights2,
+            isGkPair: false,
+          };
+
+    const isTeamAvgSelected = displayedPairIndex === null;
+
     return (
-      <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`} />
-            <h4 className="font-bold text-white text-sm">{title}</h4>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
+        {/* Colonna Sinistra: Due Contenitori Squadra Distinti (Verde a sinistra | Blu a destra) (7/12) */}
+        <div
+          className="xl:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 items-stretch"
+          onMouseLeave={() => setHoveredPairIndex(null)}
+        >
+          {/* Contenitore Squadra i Gabry (Sfondo Verde Pulito) */}
+          <div className="rounded-2xl bg-emerald-950/25 border border-emerald-500/30 p-3 flex flex-col">
+            {/* Intestazione Squadra i Gabry (Riquadro distinto e vicino ai giocatori) */}
+            <button
+              type="button"
+              onClick={() => {
+                setPinnedPairIndex(null);
+                setHoveredPairIndex(null);
+              }}
+              title="Clicca per mostrare le medie di squadra sul grafico di Kiviat"
+              className={`w-full mb-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer border-b-2 ${
+                isTeamAvgSelected
+                  ? 'bg-emerald-500/25 border-emerald-400 shadow-sm ring-1 ring-emerald-400/40'
+                  : 'bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 shrink-0" />
+                <h4 className="font-display font-bold text-emerald-100 text-base tracking-tight truncate">
+                  i Gabry
+                </h4>
+              </div>
+              <span className="text-xs font-mono-tabular text-emerald-200/90 shrink-0">
+                Forza{' '}
+                <strong className="text-emerald-300 font-bold">
+                  {team1.total_power.toFixed(1)}
+                </strong>
+              </span>
+            </button>
+
+            {/* Lista Giocatori i Gabry */}
+            <div className="space-y-2">
+              {pairedRows.map((row) => {
+                const isHovered = hoveredPairIndex === row.rowIndex;
+                const isPinned = pinnedPairIndex === row.rowIndex;
+                const isActiveRow = displayedPairIndex === row.rowIndex;
+                const s1 = row.slot1;
+
+                const isDraggingCard1 =
+                  isDraggable &&
+                  dragSource?.team === 1 &&
+                  dragSource.rowIndex === row.rowIndex;
+
+                const isDropTarget1 =
+                  isDraggable &&
+                  dragOverTarget?.team === 1 &&
+                  dragOverTarget.rowIndex === row.rowIndex &&
+                  !isDraggingCard1;
+
+                return (
+                  <div
+                    key={`gabry-row-${row.rowIndex}`}
+                    onMouseEnter={() => setHoveredPairIndex(row.rowIndex)}
+                    onClick={() => setPinnedPairIndex(row.rowIndex)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setPinnedPairIndex(row.rowIndex);
+                      }
+                    }}
+                    draggable={isDraggable && Boolean(s1)}
+                    onDragStart={(e) => {
+                      if (!isDraggable || !s1) return;
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', s1.player.id);
+                      setDragSource({
+                        team: 1,
+                        rowIndex: row.rowIndex,
+                        playerId: s1.player.id,
+                      });
+                    }}
+                    onDragOver={(e) => {
+                      if (!isDraggable || !dragSource || !s1) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (
+                        dragOverTarget?.team !== 1 ||
+                        dragOverTarget?.rowIndex !== row.rowIndex
+                      ) {
+                        setDragOverTarget({ team: 1, rowIndex: row.rowIndex });
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (
+                        dragOverTarget?.team === 1 &&
+                        dragOverTarget?.rowIndex === row.rowIndex
+                      ) {
+                        setDragOverTarget(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDropOnCard(1, row.rowIndex, s1?.player.id);
+                    }}
+                    onDragEnd={() => {
+                      setDragSource(null);
+                      setDragOverTarget(null);
+                    }}
+                    aria-label={`Confronto diretto: ${s1?.player.name ?? ''} contro ${row.slot2?.player.name ?? ''}`}
+                    className={`h-[46px] px-3 rounded-xl border transition-all flex items-center justify-between gap-2 min-w-0 select-none ${
+                      isDraggable
+                        ? 'cursor-grab active:cursor-grabbing'
+                        : 'cursor-pointer'
+                    } ${
+                      isDraggingCard1
+                        ? 'opacity-45 border-dashed border-emerald-400 bg-slate-900'
+                        : isDropTarget1
+                          ? 'bg-emerald-950/70 border-amber-400 ring-2 ring-amber-400/50 shadow-lg'
+                          : isActiveRow
+                            ? 'bg-slate-900 border-emerald-400 shadow-md ring-1 ring-emerald-400/40'
+                            : isPinned
+                              ? 'bg-slate-900/95 border-emerald-500/60'
+                              : isHovered
+                                ? 'bg-slate-900 border-emerald-400/70'
+                                : 'bg-slate-950/90 border-slate-800/90 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    {s1 ? (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isDraggable && (
+                            <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-emerald-400 shrink-0" />
+                          )}
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-mono-tabular font-bold text-[10px] shrink-0 ${getRoleBadgeClasses(
+                              s1.role
+                            )}`}
+                          >
+                            {s1.role}
+                          </span>
+                          <span className="font-semibold text-white text-xs sm:text-sm truncate">
+                            {s1.player.name}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-xs font-mono-tabular font-bold shrink-0 ${
+                            s1.isGk ? 'text-amber-300' : 'text-emerald-400'
+                          }`}
+                        >
+                          FUT {s1.futOvr}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">—</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="text-xs font-semibold text-slate-300">
-            Forza Squadra: <span className="text-emerald-400 font-bold">{power.toFixed(1)}</span>
+
+          {/* Contenitore Squadra i Piero (Sfondo Blu Pulito) */}
+          <div className="rounded-2xl bg-sky-950/25 border border-sky-500/30 p-3 flex flex-col">
+            {/* Intestazione Squadra i Piero (Riquadro distinto e vicino ai giocatori) */}
+            <button
+              type="button"
+              onClick={() => {
+                setPinnedPairIndex(null);
+                setHoveredPairIndex(null);
+              }}
+              title="Clicca per mostrare le medie di squadra sul grafico di Kiviat"
+              className={`w-full mb-2.5 px-3.5 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer border-b-2 ${
+                isTeamAvgSelected
+                  ? 'bg-sky-500/25 border-sky-400 shadow-sm ring-1 ring-sky-400/40'
+                  : 'bg-sky-500/15 border-sky-500/40 hover:bg-sky-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-sm bg-sky-400 shrink-0" />
+                <h4 className="font-display font-bold text-sky-100 text-base tracking-tight truncate">
+                  i Piero
+                </h4>
+              </div>
+              <span className="text-xs font-mono-tabular text-sky-200/90 shrink-0">
+                Forza{' '}
+                <strong className="text-sky-300 font-bold">
+                  {team2.total_power.toFixed(1)}
+                </strong>
+              </span>
+            </button>
+
+            {/* Lista Giocatori i Piero */}
+            <div className="space-y-2">
+              {pairedRows.map((row) => {
+                const isHovered = hoveredPairIndex === row.rowIndex;
+                const isPinned = pinnedPairIndex === row.rowIndex;
+                const isActiveRow = displayedPairIndex === row.rowIndex;
+                const s2 = row.slot2;
+
+                const isDraggingCard2 =
+                  isDraggable &&
+                  dragSource?.team === 2 &&
+                  dragSource.rowIndex === row.rowIndex;
+
+                const isDropTarget2 =
+                  isDraggable &&
+                  dragOverTarget?.team === 2 &&
+                  dragOverTarget.rowIndex === row.rowIndex &&
+                  !isDraggingCard2;
+
+                return (
+                  <div
+                    key={`piero-row-${row.rowIndex}`}
+                    onMouseEnter={() => setHoveredPairIndex(row.rowIndex)}
+                    onClick={() => setPinnedPairIndex(row.rowIndex)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setPinnedPairIndex(row.rowIndex);
+                      }
+                    }}
+                    draggable={isDraggable && Boolean(s2)}
+                    onDragStart={(e) => {
+                      if (!isDraggable || !s2) return;
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', s2.player.id);
+                      setDragSource({
+                        team: 2,
+                        rowIndex: row.rowIndex,
+                        playerId: s2.player.id,
+                      });
+                    }}
+                    onDragOver={(e) => {
+                      if (!isDraggable || !dragSource || !s2) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (
+                        dragOverTarget?.team !== 2 ||
+                        dragOverTarget?.rowIndex !== row.rowIndex
+                      ) {
+                        setDragOverTarget({ team: 2, rowIndex: row.rowIndex });
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (
+                        dragOverTarget?.team === 2 &&
+                        dragOverTarget?.rowIndex === row.rowIndex
+                      ) {
+                        setDragOverTarget(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDropOnCard(2, row.rowIndex, s2?.player.id);
+                    }}
+                    onDragEnd={() => {
+                      setDragSource(null);
+                      setDragOverTarget(null);
+                    }}
+                    aria-label={`Confronto diretto: ${row.slot1?.player.name ?? ''} contro ${s2?.player.name ?? ''}`}
+                    className={`h-[46px] px-3 rounded-xl border transition-all flex items-center justify-between gap-2 min-w-0 select-none ${
+                      isDraggable
+                        ? 'cursor-grab active:cursor-grabbing'
+                        : 'cursor-pointer'
+                    } ${
+                      isDraggingCard2
+                        ? 'opacity-45 border-dashed border-sky-400 bg-slate-900'
+                        : isDropTarget2
+                          ? 'bg-sky-950/70 border-amber-400 ring-2 ring-amber-400/50 shadow-lg'
+                          : isActiveRow
+                            ? 'bg-slate-900 border-sky-400 shadow-md ring-1 ring-sky-400/40'
+                            : isPinned
+                              ? 'bg-slate-900/95 border-sky-500/60'
+                              : isHovered
+                                ? 'bg-slate-900 border-sky-400/70'
+                                : 'bg-slate-950/90 border-slate-800/90 hover:border-sky-500/40'
+                    }`}
+                  >
+                    {s2 ? (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isDraggable && (
+                            <GripVertical className="w-3.5 h-3.5 text-slate-500 hover:text-sky-400 shrink-0" />
+                          )}
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-mono-tabular font-bold text-[10px] shrink-0 ${getRoleBadgeClasses(
+                              s2.role
+                            )}`}
+                          >
+                            {s2.role}
+                          </span>
+                          <span className="font-semibold text-white text-xs sm:text-sm truncate">
+                            {s2.player.name}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-xs font-mono-tabular font-bold shrink-0 ${
+                            s2.isGk ? 'text-amber-300' : 'text-sky-400'
+                          }`}
+                        >
+                          FUT {s2.futOvr}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">—</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="space-y-1.5 text-xs">
-          {gk && (
-            <div className="flex items-center justify-between bg-slate-900/90 px-3 py-2 rounded-xl border border-amber-500/30">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px]">
-                  POR
-                </span>
-                <span className="font-semibold text-white">{gk.name}</span>
-                {gk.nickname && (
-                  <span className="text-slate-400 text-[11px]">({gk.nickname})</span>
-                )}
-              </div>
-              <span className="text-amber-300 font-semibold text-[11px]">
-                FUT Portiere {weightToFutStat(gk.weights.portiere)}
-              </span>
-            </div>
-          )}
-
-          {outfieldIds.map((id) => {
-            const p = playerMap.get(id);
-            if (!p) return null;
-            const futOvr = getPlayerFutOverall(p);
-            return (
-              <div
-                key={id}
-                className="flex items-center justify-between bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800/70"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                    {p.computed.role_label}
-                  </span>
-                  <span className="font-medium text-white">{p.name}</span>
-                  {p.nickname && (
-                    <span className="text-slate-400 text-[11px]">({p.nickname})</span>
-                  )}
-                </div>
-                <span className="text-slate-300 font-bold text-xs">
-                  FUT {futOvr}
-                </span>
-              </div>
-            );
-          })}
+        {/* Colonna Destra: Grafico di Kiviat (5/12) */}
+        <div className="xl:col-span-5">
+          <DualTeamKiviatChart {...kiviatProps} />
         </div>
       </div>
     );
@@ -3351,7 +4194,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-2xl">
         <button
           type="button"
-          onClick={() => onTabChange('A')}
+          onClick={() => handleTabSwitch('A')}
           className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'A'
               ? 'bg-emerald-500 text-slate-950 font-bold shadow'
@@ -3374,7 +4217,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
         <button
           type="button"
-          onClick={() => onTabChange('B')}
+          onClick={() => handleTabSwitch('B')}
           className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'B'
               ? 'bg-emerald-500 text-slate-950 font-bold shadow'
@@ -3397,7 +4240,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
         <button
           type="button"
-          onClick={() => onTabChange('CUSTOM')}
+          onClick={() => handleTabSwitch('CUSTOM')}
           className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'CUSTOM'
               ? 'bg-emerald-500 text-slate-950 font-bold shadow'
@@ -3443,7 +4286,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => onSelectProposal('A')}
+                onClick={() => handleSelectProposalAndResetOrder('A')}
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors shadow-sm"
               >
                 Applica Proposta A al Match
@@ -3459,7 +4302,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => onSelectProposal('B')}
+                onClick={() => handleSelectProposalAndResetOrder('B')}
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors shadow-sm"
               >
                 Applica Proposta B al Match
@@ -3482,29 +4325,18 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-400 px-1">
             <span>
-              <strong className="text-white">Proposta A</strong>: Massima parità di forza complessiva tra le due squadre.
+              <strong className="text-white">Proposta A</strong>: Ordinamento per Forza FUT decrescente e in secondo luogo ruolo (POR → DIF → TUT → ATT).
             </span>
             <span className="font-semibold text-emerald-400">
               Indice di Equilibrio: {engineResult.proposal_A.micro.balance_percentage}%
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {renderTeamRoster(
-              'I Gabry',
-              engineResult.proposal_A.team_1.total_power,
-              'bg-emerald-400',
-              engineResult.proposal_A.team_1.gk_id,
-              engineResult.proposal_A.team_1.outfield_ids
-            )}
-            {renderTeamRoster(
-              'I Piero',
-              engineResult.proposal_A.team_2.total_power,
-              'bg-sky-400',
-              engineResult.proposal_A.team_2.gk_id,
-              engineResult.proposal_A.team_2.outfield_ids
-            )}
-          </div>
+          {renderPairedProposalComparison(
+            engineResult.proposal_A.team_1,
+            engineResult.proposal_A.team_2,
+            'A'
+          )}
         </div>
       )}
 
@@ -3512,29 +4344,18 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-400 px-1">
             <span>
-              <strong className="text-white">Proposta B</strong>: Privilegia la perfetta specularità dei ruoli (attaccanti e difensori).
+              <strong className="text-white">Proposta B</strong>: Ordinamento per ruolo (POR → DIF → TUT → ATT) e Forza FUT decrescente.
             </span>
             <span className="font-semibold text-emerald-400">
               Indice di Equilibrio: {engineResult.proposal_B.micro.balance_percentage}%
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {renderTeamRoster(
-              'I Gabry',
-              engineResult.proposal_B.team_1.total_power,
-              'bg-emerald-400',
-              engineResult.proposal_B.team_1.gk_id,
-              engineResult.proposal_B.team_1.outfield_ids
-            )}
-            {renderTeamRoster(
-              'I Piero',
-              engineResult.proposal_B.team_2.total_power,
-              'bg-sky-400',
-              engineResult.proposal_B.team_2.gk_id,
-              engineResult.proposal_B.team_2.outfield_ids
-            )}
-          </div>
+          {renderPairedProposalComparison(
+            engineResult.proposal_B.team_1,
+            engineResult.proposal_B.team_2,
+            'B'
+          )}
         </div>
       )}
 
@@ -3542,7 +4363,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 px-1">
             <span>
-              <strong className="text-white">Bozza Corrente / Proposta Custom</strong>: Visualizza i giocatori attualmente schierati ed effettua scambi manuali.
+              <strong className="text-white">Bozza Corrente / Custom</strong>: Trascina i giocatori per modificare l'ordine degli abbinamenti o scambiarli tra le squadre.
             </span>
             <div className="flex items-center gap-3">
               <span className="text-slate-400">
@@ -3554,86 +4375,10 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {renderTeamRoster(
-              'I Gabry',
-              match.team_1.total_power,
-              'bg-emerald-400',
-              match.team_1.gk_id,
-              match.team_1.outfield_ids
-            )}
-            {renderTeamRoster(
-              'I Piero',
-              match.team_2.total_power,
-              'bg-sky-400',
-              match.team_2.gk_id,
-              match.team_2.outfield_ids
-            )}
-          </div>
-
-          {/* Manual Swap Tool Embedded in Custom Tab */}
-          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-              <div>
-                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
-                  Scambio Manuale tra Giocatori (I Gabry ↔ I Piero)
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Scambia qualsiasi giocatore tra le due formazioni. Le quote dinamiche si ricalcoleranno istantaneamente.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <select
-                aria-label="Seleziona giocatore I Gabry per swap"
-                value={swapP1}
-                onChange={(e) => setSwapP1(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
-              >
-                <option value="">Giocatore I Gabry...</option>
-                {team1AllIds.map((id) => {
-                  const p = playerMap.get(id);
-                  return (
-                    <option key={id} value={id}>
-                      I Gabry: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
-                    </option>
-                  );
-                })}
-              </select>
-
-              <span className="text-slate-500 font-bold">↔</span>
-
-              <select
-                aria-label="Seleziona giocatore I Piero per swap"
-                value={swapP2}
-                onChange={(e) => setSwapP2(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
-              >
-                <option value="">Giocatore I Piero...</option>
-                {team2AllIds.map((id) => {
-                  const p = playerMap.get(id);
-                  return (
-                    <option key={id} value={id}>
-                      I Piero: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
-                    </option>
-                  );
-                })}
-              </select>
-
-              <button
-                type="button"
-                disabled={!swapP1 || !swapP2}
-                onClick={onSwapSubmit}
-                className="px-4 py-2 rounded-xl bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-semibold text-xs cursor-pointer shadow-sm transition-colors"
-              >
-                Esegui Scambio
-              </button>
-            </div>
-          </div>
+          {renderPairedProposalComparison(match.team_1, match.team_2, 'CUSTOM')}
         </div>
       )}
     </div>
   );
 };
+
