@@ -19,6 +19,10 @@ import {
   VotingQuestion,
 } from '../types/models';
 
+export const WILD_CARD_PLAYER_ID = 'player_wildcard';
+export const WILD_CARD_AVATAR_URL =
+  '/assets/aistudio/IMG_5458_b256473c.jpeg';
+
 export const OUTFIELD_ATTRS: OutfieldAttrKey[] = [
   'tiro',
   'velocita',
@@ -106,7 +110,7 @@ export function computePlayerMetrics(
 } {
   const { tiro: wT, velocita: wV, passaggio: wP, resistenza: wR, difesa: wD } = weights;
   const pw = config.polar_weights;
-  const tau = config.role_threshold_tau;
+  const tau = Number(config.role_threshold_tau ?? 0.2);
 
   // Coefficienti di affinità offensiva (S_A)
   const wAttT = pw.attack_tiro ?? pw.a ?? 0.50;
@@ -126,7 +130,8 @@ export function computePlayerMetrics(
   const S_D = wDifD * wD + wDifR * wR + wDifP * wP + wDifV * wV;
 
   const denom = S_A + S_D;
-  const delta_i = denom === 0 ? 0 : clip((S_A - S_D) / denom, -1, 1);
+  const rawDelta = denom === 0 ? 0 : clip((S_A - S_D) / denom, -1, 1);
+  const delta_i = Number(rawDelta.toFixed(4));
 
   let C_i: RoleState = 0;
   if (delta_i > tau) {
@@ -152,11 +157,11 @@ export function computePlayerMetrics(
     M_i: Number(M_i.toFixed(4)),
     S_A: Number(S_A.toFixed(4)),
     S_D: Number(S_D.toFixed(4)),
-    delta_i: Number(delta_i.toFixed(4)),
+    delta_i,
     C_i,
     computed: {
       overall: Number(M_i.toFixed(4)),
-      delta_index: Number(delta_i.toFixed(4)),
+      delta_index: delta_i,
       role_state: C_i,
       role_label,
     },
@@ -662,8 +667,10 @@ export function generateFairQuestionnaire(
   const playerMap = new Map(allPlayers.map((p) => [p.id, p]));
   const activeGkSet = new Set(match.active_gks_ids);
 
-  // Passo 1: I 9 candidati (tutti i convocati tranne il votante stesso)
-  const candidates = match.convocati_ids.filter((id) => id !== voterPlayerId);
+  // Passo 1: I candidati (tutti i convocati tranne il votante stesso e il giocatore Wild Card)
+  const candidates = match.convocati_ids.filter(
+    (id) => id !== voterPlayerId && id !== WILD_CARD_PLAYER_ID
+  );
 
   // Ordina per votes_received_count crescente con shuffle casuale a pari merito
   const withNoise = candidates.map((id) => ({
@@ -816,6 +823,7 @@ export function consolidateMatchVotesEMA(
   const accumulators = match.voting_tracker.anonymous_accumulators;
 
   return players.map((player) => {
+    if (player.id === WILD_CARD_PLAYER_ID) return player;
     const playerAcc = accumulators[player.id];
     if (!playerAcc) return player;
 
@@ -867,7 +875,7 @@ export function consolidateMatchVotesEMA(
 }
 
 /**
- * Ricalcola i pesi attuali (weights) quando il Direttore modifica i Valori Iniziali (initial_weights),
+ * Ricalcola i pesi attuali (weights) quando il Presidente modifica i Valori Iniziali (initial_weights),
  * mantenendo intatto l'effetto positivo o negativo accumulato tramite i voti passati (delta EMA).
  */
 export function recalculateWeightsFromNewInitial(
@@ -894,7 +902,7 @@ export function recalculateWeightsFromNewInitial(
 }
 
 /**
- * Calcola l'Overall FUT derivante dai Valori Iniziali impostati dal Direttore.
+ * Calcola l'Overall FUT derivante dai Valori Iniziali impostati dal Presidente.
  */
 export function getPlayerInitialFutOverall(player: Player): number {
   const initWeights = player.initial_weights ?? player.weights;
@@ -944,7 +952,7 @@ export function computeMatchOdds(
     return baseOdds;
   }
   const diff = team1Power - team2Power;
-  // Adeguamento proporzionale controllato dalla sensibilità del Direttore
+  // Adeguamento proporzionale controllato dalla sensibilità del Presidente
   const maxDelta = Math.min(0.85, Math.max(0.20, sensitivity * 0.9));
   const adjustment = clip(diff * sensitivity, -maxDelta, maxDelta);
   return {
@@ -990,8 +998,15 @@ export function settleMatchAndBets(
 
   const settledBets: Record<string, typeof match.bets[string]> = {};
   for (const [playerId, bet] of Object.entries(match.bets)) {
+    if (bet.status === 'CANCELLED') {
+      settledBets[playerId] = {
+        ...bet,
+        settled: true,
+        status: 'CANCELLED',
+      };
+      continue;
+    }
     const isWon = bet.pick === winner;
-    const payout = isWon ? Math.round(bet.amount * winningOdds) : 0;
     settledBets[playerId] = {
       ...bet,
       potential_payout: Math.round(bet.amount * match.odds[bet.pick]),
@@ -1015,9 +1030,9 @@ export function settleMatchAndBets(
       }
     }
 
-    // 2. Liquidazione scommessa se l'utente ha scommesso
+    // 2. Liquidazione scommessa se l'utente ha scommesso e non è stata annullata
     const bet = match.bets[player.id];
-    if (bet && !bet.settled) {
+    if (bet && !bet.settled && bet.status !== 'CANCELLED') {
       stats.bets_total += 1;
       if (bet.pick === winner) {
         const payout = Math.round(bet.amount * winningOdds);
@@ -1051,3 +1066,123 @@ export function settleMatchAndBets(
     updatedMatch,
   };
 }
+
+/**
+ * Ripristina una partita dallo stato VOTING_OPEN allo Stadio 3.0 (IN_PLAY),
+ * annullando la liquidazione delle scommesse, le statistiche di presenza/vittoria
+ * del match ed eventuali voti già inviati (inclusi i token premio presenza).
+ */
+export function revertMatchFromVotingOpenToInPlay(
+  players: Player[],
+  match: Match,
+  config: GlobalConfig
+): {
+  updatedPlayers: Player[];
+  updatedMatch: Match;
+} {
+  const winner: BetPick | null =
+    match.score.winner ??
+    (match.score.team_1 !== null && match.score.team_2 !== null
+      ? determineMatchWinner(match.score.team_1, match.score.team_2)
+      : null);
+
+  const team1PlayerIds = new Set<string>([
+    ...(match.team_1.gk_id ? [match.team_1.gk_id] : []),
+    ...match.team_1.outfield_ids,
+  ]);
+  const team2PlayerIds = new Set<string>([
+    ...(match.team_2.gk_id ? [match.team_2.gk_id] : []),
+    ...match.team_2.outfield_ids,
+  ]);
+  const convocatiSet = new Set<string>(match.convocati_ids);
+  const votersCompletedSet = new Set<string>(
+    match.voting_tracker?.voters_completed_ids ?? []
+  );
+  const attendanceReward = config.attendance_reward_tokens ?? 20;
+
+  const revertedBets: Record<string, typeof match.bets[string]> = {};
+  for (const [playerId, bet] of Object.entries(match.bets ?? {})) {
+    if (bet.status === 'CANCELLED') {
+      revertedBets[playerId] = {
+        ...bet,
+        settled: true,
+        status: 'CANCELLED',
+      };
+      continue;
+    }
+    revertedBets[playerId] = {
+      ...bet,
+      potential_payout: Math.round(bet.amount * (match.odds[bet.pick] ?? 1.85)),
+      settled: false,
+      status: 'PENDING',
+    };
+  }
+
+  const updatedPlayers = players.map((player) => {
+    const stats = { ...player.stats };
+
+    // 1. Rollback presenze e vittorie/pareggi per i 10 convocati
+    if (convocatiSet.has(player.id) && winner !== null) {
+      stats.matches_played = Math.max(0, stats.matches_played - 1);
+      if (winner === 'X') {
+        stats.matches_drawn = Math.max(0, stats.matches_drawn - 1);
+      } else if (winner === '1' && team1PlayerIds.has(player.id)) {
+        stats.matches_won = Math.max(0, stats.matches_won - 1);
+      } else if (winner === '2' && team2PlayerIds.has(player.id)) {
+        stats.matches_won = Math.max(0, stats.matches_won - 1);
+      }
+    }
+
+    // 2. Rollback liquidazione scommessa (se era stata liquidata in settleMatchAndBets)
+    const bet = match.bets?.[player.id];
+    if (bet && bet.settled && bet.status !== 'CANCELLED') {
+      stats.bets_total = Math.max(0, stats.bets_total - 1);
+      const wasWon = bet.status === 'WON' || (winner !== null && bet.pick === winner);
+      if (wasWon) {
+        const winningOdds = match.odds[bet.pick] ?? 1.85;
+        const payout = bet.potential_payout || Math.round(bet.amount * winningOdds);
+        stats.tokens = Math.max(0, stats.tokens - payout);
+        stats.bets_won = Math.max(0, stats.bets_won - 1);
+        stats.bets_net_profit = (stats.bets_net_profit ?? 0) - (payout - bet.amount);
+      } else {
+        stats.bets_net_profit = (stats.bets_net_profit ?? 0) + bet.amount;
+      }
+    }
+
+    // 3. Rollback eventuali voti già inviati nella finestra VOTING_OPEN
+    if (votersCompletedSet.has(player.id)) {
+      stats.tokens = Math.max(0, stats.tokens - attendanceReward);
+      stats.votes_completed_matches = Math.max(
+        0,
+        stats.votes_completed_matches - 1
+      );
+    }
+
+    return {
+      ...player,
+      stats,
+    };
+  });
+
+  const resetReceivedCount: Record<string, number> = {};
+  for (const cid of match.convocati_ids) {
+    resetReceivedCount[cid] = 0;
+  }
+
+  const updatedMatch: Match = {
+    ...match,
+    status: 'IN_PLAY',
+    bets: revertedBets,
+    voting_tracker: {
+      voters_completed_ids: [],
+      received_count_by_player: resetReceivedCount,
+      anonymous_accumulators: {},
+    },
+  };
+
+  return {
+    updatedPlayers,
+    updatedMatch,
+  };
+}
+

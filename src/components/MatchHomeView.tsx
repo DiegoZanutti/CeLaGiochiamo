@@ -214,7 +214,7 @@ export const MatchHomeView: React.FC<{
             {/* Outer Pitch Boundary */}
             <div className="pointer-events-none absolute inset-3 border-2 border-emerald-300/25 rounded-2xl" />
 
-            {/* Top Goal & Penalty Box (Squadra Gabry) */}
+            {/* Top Goal & Penalty Box (I Gabry) */}
             <div className="pointer-events-none absolute top-0.5 left-1/2 -translate-x-1/2 w-28 sm:w-32 h-3 bg-emerald-950/95 border-x-2 border-t-2 border-white/80 rounded-t-md shadow-inner overflow-hidden z-10">
               <div
                 className="w-full h-full opacity-40"
@@ -232,7 +232,7 @@ export const MatchHomeView: React.FC<{
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-emerald-300/25" />
             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-300/50" />
 
-            {/* Bottom Goal & Penalty Box (Squadra Piero) */}
+            {/* Bottom Goal & Penalty Box (I Piero) */}
             <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 w-48 sm:w-56 h-16 border-x border-t border-emerald-300/25 rounded-t-2xl" />
             <div className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 w-28 sm:w-32 h-3 bg-emerald-950/95 border-x-2 border-b-2 border-white/80 rounded-b-md shadow-inner overflow-hidden z-10">
               <div
@@ -255,13 +255,13 @@ export const MatchHomeView: React.FC<{
                   Nessuna partita in programma
                 </h3>
                 <p className="text-xs text-slate-300 mt-1.5 max-w-sm leading-relaxed">
-                  La prossima formazione è in fase di organizzazione. Non appena Il Direttore pubblicherà la partita, potrai vedere le squadre e puntare i tuoi token.
+                  La prossima formazione è in fase di organizzazione. Non appena Il Presidente pubblicherà la partita, potrai vedere le squadre e puntare i tuoi token.
                 </p>
               </div>
             ) : (
               <div className="relative z-10 flex-1 grid grid-rows-2">
                 {/* =========================================================
-                    TOP HALF — SQUADRA GABRY (Pentagon 1-2-2 facing down)
+                    TOP HALF — I GABRY (Pentagon 1-2-2 facing down)
                    ========================================================= */}
                 <div className="relative flex flex-col justify-between pt-9 pb-5 sm:pt-10 sm:pb-6 px-4 sm:px-8">
                   {/* Corner Team Label & Score (Fixed so it does not shift rows) */}
@@ -269,7 +269,7 @@ export const MatchHomeView: React.FC<{
                     <div className="flex items-center gap-1.5 bg-slate-950/55 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/15">
                       <span className="w-2 h-2 rounded-full bg-white shadow" />
                       <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                        Squadra Gabry
+                        I Gabry
                       </span>
                     </div>
                     {match.score.team_1 !== null && (
@@ -316,7 +316,7 @@ export const MatchHomeView: React.FC<{
                 </div>
 
                 {/* =========================================================
-                    BOTTOM HALF — SQUADRA PIERO (Pentagon 2-2-1 facing up)
+                    BOTTOM HALF — I PIERO (Pentagon 2-2-1 facing up)
                    ========================================================= */}
                 <div className="relative flex flex-col justify-between pt-5 pb-9 sm:pt-6 sm:pb-10 px-4 sm:px-8">
                   {/* Row 1 (Pentagon Inner Pair): Players 4 & 5 */}
@@ -359,7 +359,7 @@ export const MatchHomeView: React.FC<{
                     <div className="flex items-center gap-1.5 bg-slate-950/65 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-sky-400/25">
                       <span className="w-2 h-2 rounded-full bg-sky-400 shadow" />
                       <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                        Squadra Piero
+                        I Piero
                       </span>
                     </div>
                     {match.score.team_2 !== null && (
@@ -398,7 +398,7 @@ export const MatchHomeView: React.FC<{
                   Scommesse al momento chiuse
                 </div>
                 <div className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-                  Le quote 1X2 apriranno non appena Il Direttore pubblicherà la formazione della prossima partita.
+                  Le quote 1X2 apriranno non appena Il Presidente pubblicherà la formazione della prossima partita.
                 </div>
               </div>
             ) : (
@@ -408,19 +408,22 @@ export const MatchHomeView: React.FC<{
                   <div className="grid grid-cols-3 gap-2">
                     {(
                       [
-                        { pick: '1' as BetPick, label: '1 · Gabry', odds: liveOdds['1'] },
+                        { pick: '1' as BetPick, label: '1 · I Gabry', odds: liveOdds['1'] },
                         { pick: 'X' as BetPick, label: 'X · Pari', odds: liveOdds['X'] },
-                        { pick: '2' as BetPick, label: '2 · Piero', odds: liveOdds['2'] },
+                        { pick: '2' as BetPick, label: '2 · I Piero', odds: liveOdds['2'] },
                       ] as const
                     ).map((opt) => {
+                      const hasActiveLockedBet = Boolean(
+                        userExistingBet && userExistingBet.status !== 'CANCELLED'
+                      );
                       const isSelected =
-                        (userExistingBet?.pick ?? selectedPick) === opt.pick;
+                        (hasActiveLockedBet ? userExistingBet?.pick : selectedPick) === opt.pick;
                       return (
                         <button
                           key={opt.pick}
                           type="button"
                           disabled={
-                            Boolean(userExistingBet) ||
+                            hasActiveLockedBet ||
                             match.status !== 'OPEN_FOR_BETS' ||
                             !isLoggedIn
                           }
@@ -430,7 +433,7 @@ export const MatchHomeView: React.FC<{
                               ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-sm'
                               : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                           } ${
-                            userExistingBet || match.status !== 'OPEN_FOR_BETS' || !isLoggedIn
+                            hasActiveLockedBet || match.status !== 'OPEN_FOR_BETS' || !isLoggedIn
                               ? 'opacity-85'
                               : 'cursor-pointer'
                           }`}
@@ -448,7 +451,25 @@ export const MatchHomeView: React.FC<{
                 </div>
 
                 {/* Auth Gate & Betting Action */}
-                <div className="mt-5">
+                <div className="mt-5 space-y-3">
+                  {userExistingBet?.status === 'CANCELLED' && (
+                    <div className="bg-amber-950/20 border border-amber-500/30 rounded-2xl p-4 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-amber-400 font-semibold">
+                          Scommessa Annullata e Rimborsata
+                        </span>
+                        <span className="text-slate-400 text-[11px]">
+                          Cambio formazione
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300">
+                        A seguito di una variazione nelle formazioni le quote sono cambiate. In base alle tue impostazioni profilo, la puntata di{' '}
+                        <strong className="text-white">{userExistingBet.amount} Token</strong> sul segno{' '}
+                        <strong className="text-white">{userExistingBet.pick}</strong> è stata annullata e rimborsata sul tuo saldo.
+                      </p>
+                    </div>
+                  )}
+
                   {!isLoggedIn ? (
                     <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-center space-y-3">
                       <div className="text-xs text-slate-400">
@@ -472,7 +493,7 @@ export const MatchHomeView: React.FC<{
                         Per scommettere, associa il tuo profilo giocatore nella scheda <strong>Profilo</strong>.
                       </p>
                     </div>
-                  ) : userExistingBet ? (
+                  ) : userExistingBet && userExistingBet.status !== 'CANCELLED' ? (
                     <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
@@ -498,10 +519,12 @@ export const MatchHomeView: React.FC<{
                       </div>
                     </div>
                   ) : match.status !== 'OPEN_FOR_BETS' ? (
-                    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span>Scommesse chiuse per questo incontro.</span>
-                    </div>
+                    !userExistingBet && (
+                      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span>Scommesse chiuse per questo incontro.</span>
+                      </div>
+                    )
                   ) : currentPlayer.stats.tokens <= 0 ? (
                     <div className="bg-rose-950/20 border border-rose-500/30 rounded-2xl p-4 text-xs text-rose-300 space-y-1">
                       <div className="font-semibold text-rose-400">Saldo Token Esaurito</div>
@@ -569,7 +592,7 @@ export const MatchHomeView: React.FC<{
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono-tabular">
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
-                      <div className="text-[10px] text-slate-400">1 · Gabry</div>
+                      <div className="text-[10px] text-slate-400">1 · I Gabry</div>
                       <div className="font-bold text-white mt-0.5">{betDistribution.pct1}%</div>
                     </div>
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
@@ -577,7 +600,7 @@ export const MatchHomeView: React.FC<{
                       <div className="font-bold text-amber-300 mt-0.5">{betDistribution.pctX}%</div>
                     </div>
                     <div className="bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2">
-                      <div className="text-[10px] text-slate-400">2 · Piero</div>
+                      <div className="text-[10px] text-slate-400">2 · I Piero</div>
                       <div className="font-bold text-sky-400 mt-0.5">{betDistribution.pct2}%</div>
                     </div>
                   </div>

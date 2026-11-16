@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { MatchHomeView } from './components/MatchHomeView';
+import { MatchHistoryView } from './components/MatchHistoryView';
 import { FutGalleryView } from './components/FutGalleryView';
 import { LeaderboardsView } from './components/LeaderboardsView';
 import { ProfileWalletView } from './components/ProfileWalletView';
@@ -17,6 +18,7 @@ import {
   ArrowLeft,
   Calculator,
   Database,
+  History,
   LayoutGrid,
   LogIn,
   LogOut,
@@ -30,7 +32,7 @@ import {
   X,
 } from 'lucide-react';
 
-type MainSection = 'MATCH' | 'GALLERY' | 'LEADERBOARDS' | 'PROFILE' | 'ADMIN';
+type MainSection = 'MATCH' | 'HISTORY' | 'GALLERY' | 'LEADERBOARDS' | 'PROFILE' | 'ADMIN';
 
 const MainShell: React.FC = () => {
   const {
@@ -67,6 +69,12 @@ const MainShell: React.FC = () => {
       icon: <Volleyball className="w-5 h-5" />,
     },
     {
+      id: 'HISTORY',
+      label: 'Storico Partite',
+      shortLabel: 'Storico',
+      icon: <History className="w-5 h-5" />,
+    },
+    {
       id: 'GALLERY',
       label: 'Carte FUT',
       shortLabel: 'Carte FUT',
@@ -92,8 +100,8 @@ const MainShell: React.FC = () => {
       ? [
           {
             id: 'ADMIN' as MainSection,
-            label: 'Direttore',
-            shortLabel: 'Direttore',
+            label: 'Presidente',
+            shortLabel: 'Presidente',
             icon: <Shield className="w-5 h-5" />,
           },
         ]
@@ -150,13 +158,13 @@ const MainShell: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2 text-xs font-display font-bold text-emerald-400 uppercase tracking-wider">
               <span className="text-slate-700">·</span>
               <Shield className="w-3.5 h-3.5" />
-              <span>Direttore</span>
+              <span>Presidente</span>
             </div>
           </div>
 
           {/* Zone 2: 4 Direct Backoffice Sections (Partita, Rosa, Utenti, Regole) */}
           <nav
-            aria-label="Menu Direttore"
+            aria-label="Menu Presidente"
             className="hidden md:flex items-center gap-6 text-sm font-medium"
           >
             {adminNavItems.map((item) => {
@@ -340,6 +348,7 @@ const MainShell: React.FC = () => {
             onOpenLogin={() => setIsLoginModalOpen(true)}
           />
         )}
+        {activeSection === 'HISTORY' && <MatchHistoryView />}
         {activeSection === 'GALLERY' && <FutGalleryView />}
         {activeSection === 'LEADERBOARDS' && <LeaderboardsView />}
         {activeSection === 'PROFILE' && (
@@ -360,7 +369,7 @@ const MainShell: React.FC = () => {
       {/* Mobile Fixed Bottom Navigation Bar (Contextual when in Backoffice) */}
       {activeSection === 'ADMIN' ? (
         <nav
-          aria-label="Navigazione mobile Direttore"
+          aria-label="Navigazione mobile Presidente"
           className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-emerald-500/30 h-16 px-2 grid grid-cols-4 items-center"
         >
           {adminNavItems.map((item) => {

@@ -13,7 +13,9 @@ import {
   futStatToWeight,
   getPlayerFutOverall,
   getPlayerInitialFutOverall,
+  recalculateAfterManualSwap,
   weightToFutStat,
+  WILD_CARD_PLAYER_ID,
 } from '../engine/mathEngine';
 import { DEFAULT_GLOBAL_CONFIG, setClientDatabaseEnvironment } from '../db/testDatabase';
 import { BalancingInfoModal } from './BalancingInfoModal';
@@ -317,7 +319,7 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     label: 'Token di Benvenuto',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Saldo di Token omaggio accreditato a un giocatore appena l’account Google/Apple viene convalidato dal Direttore.',
+      'Saldo di Token omaggio accreditato a un giocatore appena l’account Google/Apple viene convalidato dal Presidente.',
     recommended: 'Valore consigliato: 100 Token',
   },
   attendance_reward: {
@@ -328,10 +330,10 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     recommended: 'Valore consigliato: 20 Token',
   },
   odd_1: {
-    label: 'Quota Base Vittoria Squadra 1',
+    label: 'Quota Base Vittoria I Gabry',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria della Squadra 1 quando le due squadre sono perfettamente alla pari.',
+      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de I Gabry quando le due squadre sono perfettamente alla pari.',
     recommended: 'Valore tipico: 1.85',
   },
   odd_X: {
@@ -342,10 +344,10 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     recommended: 'Valore tipico: 3.20',
   },
   odd_2: {
-    label: 'Quota Base Vittoria Squadra 2',
+    label: 'Quota Base Vittoria I Piero',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria della Squadra 2 in condizione di parità teorica.',
+      'Moltiplicatore base di vincita applicato alle puntate sulla vittoria de I Piero in condizione di parità teorica.',
     recommended: 'Valore tipico: 1.85',
   },
   dynamic_odds_sensitivity: {
@@ -391,8 +393,10 @@ export const AdminBackofficeView: React.FC<{
     updateDraftConvocati,
     selectBalancingProposal,
     swapPlayersBetweenTeams,
+    substitutePlayerInPlay,
     publishMatchForBets,
     closeBetsAndStartMatch,
+    saveProvisionalScore,
     finishMatchAndOpenVoting,
     consolidateVotesAndArchiveMatch,
     startNewWeeklyDraftMatch,
@@ -427,10 +431,20 @@ export const AdminBackofficeView: React.FC<{
   const [matchLocationText, setMatchLocationText] = useState<string>(
     initialParsed.locationText
   );
-  const [scoreG1Draft, setScoreG1Draft] = useState<string>('6');
-  const [scoreG2Draft, setScoreG2Draft] = useState<string>('5');
+  const [scoreG1Draft, setScoreG1Draft] = useState<string>(
+    match?.score.team_1 !== null && match?.score.team_1 !== undefined
+      ? String(match.score.team_1)
+      : '6'
+  );
+  const [scoreG2Draft, setScoreG2Draft] = useState<string>(
+    match?.score.team_2 !== null && match?.score.team_2 !== undefined
+      ? String(match.score.team_2)
+      : '5'
+  );
   const [swapP1, setSwapP1] = useState<string>('');
   const [swapP2, setSwapP2] = useState<string>('');
+  const [subOutId, setSubOutId] = useState<string>('');
+  const [subInId, setSubInId] = useState<string>('');
   const [newMatchDateText, setNewMatchDateText] = useState<string>('Giovedì 19 Novembre');
   const [newMatchTimeText, setNewMatchTimeText] = useState<string>('21:00');
   const [newMatchLocationText, setNewMatchLocationText] = useState<string>('Sporting Club');
@@ -443,6 +457,12 @@ export const AdminBackofficeView: React.FC<{
       setMatchDateText(parsed.dateText);
       setMatchTimeText(parsed.timeText);
       setMatchLocationText(parsed.locationText);
+      if (match.score.team_1 !== null && match.score.team_1 !== undefined) {
+        setScoreG1Draft(String(match.score.team_1));
+      }
+      if (match.score.team_2 !== null && match.score.team_2 !== undefined) {
+        setScoreG2Draft(String(match.score.team_2));
+      }
       if (match.selected_solution) {
         setSelectedProposalTab(match.selected_solution);
       }
@@ -670,7 +690,7 @@ export const AdminBackofficeView: React.FC<{
     },
     USER_CLAIMS: {
       title: `Utenti & Collegamento Giocatori (${pendingUsers.length} in attesa)`,
-      subtitle: 'Gestisci le associazioni tra gli account registrati (incluso il Direttore) e i profili della rosa.',
+      subtitle: 'Gestisci le associazioni tra gli account registrati (incluso il Presidente) e i profili della rosa.',
     },
     GLOBAL_SETTINGS: {
       title: 'Regole & Parametri del Motore',
@@ -929,7 +949,7 @@ export const AdminBackofficeView: React.FC<{
               </div>
             </div>
 
-            {/* 5-Step Pipeline Bar */}
+            {/* 5-Step Pipeline Bar (With Stage 3.0 & 3.1 detail) */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-5 text-xs font-mono-tabular">
               {(['DRAFT', 'OPEN_FOR_BETS', 'IN_PLAY', 'VOTING_OPEN', 'ARCHIVED'] as const).map(
                 (st, idx) => {
@@ -943,7 +963,9 @@ export const AdminBackofficeView: React.FC<{
                           : 'bg-slate-950 border-slate-800 text-slate-400'
                       }`}
                     >
-                      <div>Stadio {idx + 1}</div>
+                      <div>
+                        {st === 'IN_PLAY' ? 'Stadio 3.0 / 3.1' : `Stadio ${idx + 1}`}
+                      </div>
                       <div className="mt-0.5 truncate">{st}</div>
                     </div>
                   );
@@ -974,79 +996,383 @@ export const AdminBackofficeView: React.FC<{
               )}
 
               {match.status === 'OPEN_FOR_BETS' && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="text-xs text-slate-300">
-                    <div className="font-semibold text-white text-sm">
-                      Fase 2 (OPEN_FOR_BETS): Scommesse 1X2 Aperte al Pubblico
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="text-xs text-slate-300">
+                      <div className="font-semibold text-white text-sm">
+                        Fase 2 (OPEN_FOR_BETS): Scommesse 1X2 Aperte al Pubblico
+                      </div>
+                      <p className="text-slate-400 mt-0.5">
+                        Puoi effettuare sostituzioni all&apos;ultimo minuto (inclusa la Wild Card «Lo sconosciuto») o scambi tra squadre anche a scommesse aperte: chi accetta variazioni mantiene la scommessa con le nuove quote, chi non accetta viene rimborsato.
+                      </p>
                     </div>
-                    <p className="text-slate-400 mt-0.5">
-                      Quando i 10 giocatori stanno per scendere in campo, blocca le scommesse e avvia la partita.
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startNewWeeklyDraftMatch(match.date_label)}
+                        className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs cursor-pointer"
+                      >
+                        Riporta in DRAFT (Modifica Convocati)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeBetsAndStartMatch}
+                        className="px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Play className="w-4 h-4" /> Chiudi Scommesse / Inizia Match (→ Stadio 3.0 IN_PLAY)
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => startNewWeeklyDraftMatch(match.date_label)}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs cursor-pointer"
-                    >
-                      Riporta in DRAFT (Modifica Convocati)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={closeBetsAndStartMatch}
-                      className="px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Play className="w-4 h-4" /> Chiudi Scommesse / Inizia Match (→ IN_PLAY)
-                    </button>
+
+                  {/* Sostituzione all'Ultimo Minuto & Scambio Formazioni in OPEN_FOR_BETS */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-3 border-t border-slate-800">
+                    {/* 1. Sostituzione Convocato con Riserva o Wild Card */}
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-amber-400" />
+                        <span>Sostituzione all&apos;Ultimo Minuto (Uscente → Sostituto / Wild Card)</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Sostituisci un convocato con un altro giocatore della rosa o con <strong className="text-amber-300">Wild Card («Lo sconosciuto»)</strong>. Le quote si aggiornano come conseguenza del cambio formazione.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          aria-label="Giocatore uscente"
+                          value={subOutId}
+                          onChange={(e) => setSubOutId(e.target.value)}
+                          className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                        >
+                          <option value="">Esce dal campo...</option>
+                          {match.convocati_ids.map((id) => {
+                            const p = playerMap.get(id);
+                            const inT1 = team1AllIds.includes(id);
+                            return (
+                              <option key={id} value={id}>
+                                {inT1 ? '[I Gabry]' : '[I Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                              </option>
+                            );
+                          })}
+                        </select>
+
+                        <span className="text-amber-400 font-bold text-xs">→</span>
+
+                        <select
+                          aria-label="Giocatore entrante dalla rosa"
+                          value={subInId}
+                          onChange={(e) => setSubInId(e.target.value)}
+                          className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                        >
+                          <option value="">Entra dalla rosa...</option>
+                          {players
+                            .filter((p) => p.is_active && !match.convocati_ids.includes(p.id))
+                            .sort((a, b) =>
+                              a.id === WILD_CARD_PLAYER_ID
+                                ? -1
+                                : b.id === WILD_CARD_PLAYER_ID
+                                  ? 1
+                                  : 0
+                            )
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.id === WILD_CARD_PLAYER_ID
+                                  ? `★ ${p.name} («${p.nickname}» · TUT · FUT 65)`
+                                  : `${p.name} (${p.wants_to_be_gk ? 'POR' : p.computed.role_label} · FUT ${getPlayerFutOverall(p)})`}
+                              </option>
+                            ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          disabled={!subOutId || !subInId}
+                          onClick={async () => {
+                            if (!subOutId || !subInId) return;
+                            await substitutePlayerInPlay(subOutId, subInId);
+                            setSubOutId('');
+                            setSubInId('');
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
+                        >
+                          Sostituisci Ora
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Scambio Rapido tra I Gabry e I Piero in OPEN_FOR_BETS */}
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
+                        <span>Modifica Formazioni (Scambio I Gabry ↔ I Piero)</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Inverti due giocatori tra le due squadre. Anche questo cambio formazione ricalcola le quote e applica la preferenza sulle scommesse.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          aria-label="Giocatore I Gabry"
+                          value={swapP1}
+                          onChange={(e) => setSwapP1(e.target.value)}
+                          className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                        >
+                          <option value="">I Gabry...</option>
+                          {team1AllIds.map((id) => {
+                            const p = playerMap.get(id);
+                            return (
+                              <option key={id} value={id}>
+                                {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                              </option>
+                            );
+                          })}
+                        </select>
+
+                        <span className="text-emerald-400 font-bold text-xs">↔</span>
+
+                        <select
+                          aria-label="Giocatore I Piero"
+                          value={swapP2}
+                          onChange={(e) => setSwapP2(e.target.value)}
+                          className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                        >
+                          <option value="">I Piero...</option>
+                          {team2AllIds.map((id) => {
+                            const p = playerMap.get(id);
+                            return (
+                              <option key={id} value={id}>
+                                {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                              </option>
+                            );
+                          })}
+                        </select>
+
+                        <button
+                          type="button"
+                          disabled={!swapP1 || !swapP2}
+                          onClick={handleSwapSubmit}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
+                        >
+                          Scambia
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
               {match.status === 'IN_PLAY' && (
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="text-xs text-slate-300">
-                    <div className="font-semibold text-white text-sm">
-                      Fase 3 (IN_PLAY): Inserisci Risultato Finale, Liquida Scommesse e Apri Votazioni
+                <div className="space-y-5">
+                  {/* STADIO 3.0: Risultato Provvisorio & Sostituzioni all'Ultimo Minuto */}
+                  <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-4 space-y-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                      <div className="text-xs text-slate-300">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-bold text-[11px] mb-1">
+                          STADIO 3.0 · IN_PLAY (MODIFICABILE)
+                        </div>
+                        <div className="font-semibold text-white text-sm">
+                          Partita in Corso: Risultato Provvisorio & Sostituzioni dell&apos;Ultimo Minuto
+                        </div>
+                        <p className="text-slate-400 mt-0.5">
+                          Inserisci o aggiorna il risultato in tempo reale senza ancora chiudere il match né liquidare le scommesse.
+                          {match.score.team_1 !== null && match.score.team_2 !== null && (
+                            <span className="ml-1.5 text-amber-300 font-semibold">
+                              (Risultato provvisorio salvato: {match.score.team_1} - {match.score.team_2})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+                          <label htmlFor="score-g1" className="text-xs text-slate-300">
+                            Gol I Gabry:
+                          </label>
+                          <input
+                            id="score-g1"
+                            type="text"
+                            inputMode="numeric"
+                            value={scoreG1Draft}
+                            onChange={(e) => setScoreG1Draft(e.target.value)}
+                            onBlur={() => {
+                              const val = Math.max(0, Math.min(30, parseInt(scoreG1Draft, 10) || 0));
+                              setScoreG1Draft(String(val));
+                            }}
+                            className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono-tabular text-sm text-white focus:border-amber-400 focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+                          <label htmlFor="score-g2" className="text-xs text-slate-300">
+                            Gol I Piero:
+                          </label>
+                          <input
+                            id="score-g2"
+                            type="text"
+                            inputMode="numeric"
+                            value={scoreG2Draft}
+                            onChange={(e) => setScoreG2Draft(e.target.value)}
+                            onBlur={() => {
+                              const val = Math.max(0, Math.min(30, parseInt(scoreG2Draft, 10) || 0));
+                              setScoreG2Draft(String(val));
+                            }}
+                            className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono-tabular text-sm text-white focus:border-amber-400 focus:outline-none"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const s1 = Math.max(0, Math.min(30, parseInt(scoreG1Draft, 10) || 0));
+                            const s2 = Math.max(0, Math.min(30, parseInt(scoreG2Draft, 10) || 0));
+                            saveProvisionalScore(s1, s2);
+                          }}
+                          className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <Save className="w-4 h-4" /> Salva Risultato Provvisorio (3.0)
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-slate-400 mt-0.5">
-                      Allo sblocco di VOTING_OPEN il sistema liquida istantaneamente le scommesse vincenti e accredita +1 presenza e +1 vittoria alle classifiche.
-                    </p>
+
+                    {/* Last-Minute Substitution & In-Play Lineup Adjustment */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                      {/* 1. Sostituzione Convocato con Riserva dalla Rosa */}
+                      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-amber-400" />
+                          <span>Sostituzione all&apos;Ultimo Minuto (Uscente → Sostituto / Wild Card)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Sostituisci un giocatore in campo con un altro della rosa o con <strong className="text-amber-300">Wild Card («Lo sconosciuto»)</strong>. Chi accetta variazioni mantiene la scommessa con le nuove quote, chi non accetta viene rimborsato.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            aria-label="Giocatore uscente"
+                            value={subOutId}
+                            onChange={(e) => setSubOutId(e.target.value)}
+                            className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                          >
+                            <option value="">Esce dal campo...</option>
+                            {match.convocati_ids.map((id) => {
+                              const p = playerMap.get(id);
+                              const inT1 = team1AllIds.includes(id);
+                              return (
+                                <option key={id} value={id}>
+                                  {inT1 ? '[I Gabry]' : '[I Piero]'} {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <span className="text-amber-400 font-bold text-xs">→</span>
+
+                          <select
+                            aria-label="Giocatore entrante dalla rosa"
+                            value={subInId}
+                            onChange={(e) => setSubInId(e.target.value)}
+                            className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400"
+                          >
+                            <option value="">Entra dalla rosa...</option>
+                            {players
+                              .filter((p) => p.is_active && !match.convocati_ids.includes(p.id))
+                              .sort((a, b) =>
+                                a.id === WILD_CARD_PLAYER_ID
+                                  ? -1
+                                  : b.id === WILD_CARD_PLAYER_ID
+                                    ? 1
+                                    : 0
+                              )
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.id === WILD_CARD_PLAYER_ID
+                                    ? `★ ${p.name} («${p.nickname}» · TUT · FUT 65)`
+                                    : `${p.name} (${p.wants_to_be_gk ? 'POR' : p.computed.role_label} · FUT ${getPlayerFutOverall(p)})`}
+                                </option>
+                              ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={!subOutId || !subInId}
+                            onClick={async () => {
+                              if (!subOutId || !subInId) return;
+                              await substitutePlayerInPlay(subOutId, subInId);
+                              setSubOutId('');
+                              setSubInId('');
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
+                          >
+                            Sostituisci Ora
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2. Scambio Rapido tra I Gabry e I Piero in IN_PLAY */}
+                      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                        <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
+                          <span>Modifica Formazioni in Corso (Scambio I Gabry ↔ I Piero)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Inverti due giocatori tra le due squadre durante lo Stadio 3.0. Anche in questo caso le quote e le scommesse si adeguano automaticamente.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            aria-label="Giocatore I Gabry"
+                            value={swapP1}
+                            onChange={(e) => setSwapP1(e.target.value)}
+                            className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                          >
+                            <option value="">I Gabry...</option>
+                            {team1AllIds.map((id) => {
+                              const p = playerMap.get(id);
+                              return (
+                                <option key={id} value={id}>
+                                  {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <span className="text-emerald-400 font-bold text-xs">↔</span>
+
+                          <select
+                            aria-label="Giocatore I Piero"
+                            value={swapP2}
+                            onChange={(e) => setSwapP2(e.target.value)}
+                            className="flex-1 min-w-[140px] px-2.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                          >
+                            <option value="">I Piero...</option>
+                            {team2AllIds.map((id) => {
+                              const p = playerMap.get(id);
+                              return (
+                                <option key={id} value={id}>
+                                  {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={!swapP1 || !swapP2}
+                            onClick={handleSwapSubmit}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs cursor-pointer transition-colors"
+                          >
+                            Scambia
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2">
-                      <label htmlFor="score-g1" className="text-xs text-slate-300">
-                        Gol Gabry:
-                      </label>
-                      <input
-                        id="score-g1"
-                        type="text"
-                        inputMode="numeric"
-                        value={scoreG1Draft}
-                        onChange={(e) => setScoreG1Draft(e.target.value)}
-                        onBlur={() => {
-                          const val = Math.max(0, Math.min(30, parseInt(scoreG1Draft, 10) || 0));
-                          setScoreG1Draft(String(val));
-                        }}
-                        className="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono-tabular text-sm text-white focus:border-emerald-400 focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2">
-                      <label htmlFor="score-g2" className="text-xs text-slate-300">
-                        Gol Piero:
-                      </label>
-                      <input
-                        id="score-g2"
-                        type="text"
-                        inputMode="numeric"
-                        value={scoreG2Draft}
-                        onChange={(e) => setScoreG2Draft(e.target.value)}
-                        onBlur={() => {
-                          const val = Math.max(0, Math.min(30, parseInt(scoreG2Draft, 10) || 0));
-                          setScoreG2Draft(String(val));
-                        }}
-                        className="w-14 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono-tabular text-sm text-white focus:border-emerald-400 focus:outline-none"
-                      />
+                  {/* STADIO 3.1: Conferma Risultato Finale e Liquidazione Definitiva Scommesse */}
+                  <div className="bg-emerald-950/25 border border-emerald-500/40 rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="text-xs text-slate-300">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[11px] mb-1">
+                        STADIO 3.1 · CONFERMA DEFINITIVA & LIQUIDAZIONE
+                      </div>
+                      <div className="font-semibold text-white text-sm">
+                        Conferma Risultato Finale ({scoreG1Draft} - {scoreG2Draft}), Liquida Scommesse e Apri Votazioni
+                      </div>
+                      <p className="text-slate-400 mt-0.5">
+                        Confermando lo Stadio 3.1 il risultato diventa definitivo, le scommesse attive vengono liquidate e si apre la finestra di voto anonimo (Stadio 4 VOTING_OPEN).
+                      </p>
                     </div>
 
                     <button
@@ -1056,9 +1382,9 @@ export const AdminBackofficeView: React.FC<{
                         const s2 = Math.max(0, Math.min(30, parseInt(scoreG2Draft, 10) || 0));
                         finishMatchAndOpenVoting(s1, s2);
                       }}
-                      className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md shrink-0"
                     >
-                      <Trophy className="w-4 h-4" /> Termina Match e Apri Votazioni (→ VOTING_OPEN)
+                      <Trophy className="w-4 h-4" /> Conferma Risultato ({scoreG1Draft}-{scoreG2Draft}) e Liquida Scommesse (→ VOTING_OPEN)
                     </button>
                   </div>
                 </div>
@@ -1380,7 +1706,7 @@ export const AdminBackofficeView: React.FC<{
                   Rosa Giocatori ({players.length} Giocatori)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Visualizza le statistiche attuali e modifica in qualsiasi momento i Valori Iniziali (40–99) assegnati dal Direttore.
+                  Visualizza le statistiche attuali e modifica in qualsiasi momento i Valori Iniziali (40–99) assegnati dal Presidente.
                 </p>
               </div>
             </div>
@@ -1394,7 +1720,7 @@ export const AdminBackofficeView: React.FC<{
                   </div>
                   <div>
                     <h4 className="text-xs font-semibold text-white">
-                      Valore Iniziale del Direttore & Evoluzione Continua (EMA)
+                      Valore Iniziale del Presidente & Evoluzione Continua (EMA)
                     </h4>
                     <p className="text-[11px] text-slate-400">
                       Quando aggiungi o modifichi un giocatore imposti il suo <strong className="text-white">Valore Iniziale</strong>. Dopo ogni partita, i voti aggiornano il <strong className="text-emerald-400">Valore Attuale</strong> tramite media EMA. Se modifichi il Valore Iniziale, il Valore Attuale si ricalcola automaticamente mantenendo l&apos;effetto dei voti già ricevuti.
@@ -1656,154 +1982,169 @@ export const AdminBackofficeView: React.FC<{
                                   «{p.nickname}»
                                 </div>
                               )}
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <label
-                                  className={`text-[10px] text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 ${
-                                    uploadingPhotoPlayerId === p.id
-                                      ? 'opacity-60 pointer-events-none'
-                                      : ''
-                                  }`}
-                                >
-                                  <Camera className="w-3 h-3" />
-                                  <span>
-                                    {uploadingPhotoPlayerId === p.id
-                                      ? 'Elaborazione foto...'
-                                      : p.avatar_url
-                                        ? 'Cambia foto'
-                                        : 'Carica foto'}
-                                  </span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="sr-only"
-                                    onChange={(e) => {
-                                      const f = e.target.files?.[0];
-                                      e.target.value = '';
-                                      handleAdminPhotoUpload(p.id, f);
-                                    }}
-                                  />
-                                </label>
-                                {p.avatar_url && uploadingPhotoPlayerId !== p.id && (
-                                  <button
-                                    type="button"
-                                    onClick={() => updatePlayerPhoto(p.id, '')}
-                                    className="text-[10px] text-rose-400 hover:text-rose-300 cursor-pointer"
-                                  >
-                                    Rimuovi
-                                  </button>
+                                {p.id !== WILD_CARD_PLAYER_ID && (
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <label
+                                      className={`text-[10px] text-emerald-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1 ${
+                                        uploadingPhotoPlayerId === p.id
+                                          ? 'opacity-60 pointer-events-none'
+                                          : ''
+                                      }`}
+                                    >
+                                      <Camera className="w-3 h-3" />
+                                      <span>
+                                        {uploadingPhotoPlayerId === p.id
+                                          ? 'Elaborazione foto...'
+                                          : p.avatar_url
+                                            ? 'Cambia foto'
+                                            : 'Carica foto'}
+                                      </span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="sr-only"
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          e.target.value = '';
+                                          handleAdminPhotoUpload(p.id, f);
+                                        }}
+                                      />
+                                    </label>
+                                    {p.avatar_url && uploadingPhotoPlayerId !== p.id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => updatePlayerPhoto(p.id, '')}
+                                        className="text-[10px] text-rose-400 hover:text-rose-300 cursor-pointer"
+                                      >
+                                        Rimuovi
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-emerald-400 font-bold">
-                            {p.wants_to_be_gk ? 'POR' : p.computed.role_label} ·{' '}
-                            {curOvr}
-                          </div>
-                          {ovrDelta !== 0 && (
-                            <div className="text-[10px] text-slate-400">
-                              Iniz: {initOvr} ({ovrDelta > 0 ? `+${ovrDelta}` : ovrDelta})
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="text-emerald-400 font-bold">
+                              {p.wants_to_be_gk ? 'POR' : p.computed.role_label} ·{' '}
+                              {curOvr}
                             </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 font-sans">
-                          {totalVotesReceived > 0 ? (
-                            <div className="space-y-0.5">
-                              <span className="text-emerald-400 font-semibold text-[11px]">
-                                Evoluzione EMA
-                              </span>
-                              <div className="text-[10px] text-slate-400 font-mono-tabular">
-                                {totalVotesReceived} voti ricevuti
+                            {ovrDelta !== 0 && (
+                              <div className="text-[10px] text-slate-400">
+                                Iniz: {initOvr} ({ovrDelta > 0 ? `+${ovrDelta}` : ovrDelta})
                               </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <span className="text-slate-300 font-medium text-[11px]">
-                                Valore Iniziale
-                              </span>
-                              <div className="text-[10px] text-slate-500 font-mono-tabular">
-                                0 voti ricevuti
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        {(
-                          [
-                            'tiro',
-                            'velocita',
-                            'passaggio',
-                            'resistenza',
-                            'difesa',
-                          ] as const
-                        ).map((k) => {
-                          const curStat = weightToFutStat(p.weights[k]);
-                          const initStat = weightToFutStat(initWeights[k]);
-                          return (
-                            <td key={k} className="py-2.5 px-3 text-slate-200">
-                              <div className="font-semibold">{curStat}</div>
-                              {curStat !== initStat && (
-                                <div className="text-[10px] text-slate-500">
-                                  Iniz: {initStat}
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans">
+                            {p.id === WILD_CARD_PLAYER_ID ? (
+                              <div className="space-y-0.5">
+                                <span className="text-amber-300 font-semibold text-[11px]">
+                                  Valori Fissi (65)
+                                </span>
+                                <div className="text-[10px] text-slate-400 font-mono-tabular">
+                                  Escluso da voti/utenti
                                 </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="py-2.5 px-3 text-slate-200">
-                          <div className="font-semibold">
-                            {weightToFutStat(p.weights.portiere)} {p.wants_to_be_gk ? '(POR)' : ''}
-                          </div>
-                          {weightToFutStat(p.weights.portiere) !== weightToFutStat(initWeights.portiere) && (
-                            <div className="text-[10px] text-slate-500">
-                              Iniz: {weightToFutStat(initWeights.portiere)}
+                              </div>
+                            ) : totalVotesReceived > 0 ? (
+                              <div className="space-y-0.5">
+                                <span className="text-emerald-400 font-semibold text-[11px]">
+                                  Evoluzione EMA
+                                </span>
+                                <div className="text-[10px] text-slate-400 font-mono-tabular">
+                                  {totalVotesReceived} voti ricevuti
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <span className="text-slate-300 font-medium text-[11px]">
+                                  Valore Iniziale
+                                </span>
+                                <div className="text-[10px] text-slate-500 font-mono-tabular">
+                                  0 voti ricevuti
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          {(
+                            [
+                              'tiro',
+                              'velocita',
+                              'passaggio',
+                              'resistenza',
+                              'difesa',
+                            ] as const
+                          ).map((k) => {
+                            const curStat = weightToFutStat(p.weights[k]);
+                            const initStat = weightToFutStat(initWeights[k]);
+                            return (
+                              <td key={k} className="py-2.5 px-3 text-slate-200">
+                                <div className="font-semibold">{curStat}</div>
+                                {curStat !== initStat && (
+                                  <div className="text-[10px] text-slate-500">
+                                    Iniz: {initStat}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="py-2.5 px-3 text-slate-200">
+                            <div className="font-semibold">
+                              {weightToFutStat(p.weights.portiere)} {p.wants_to_be_gk ? '(POR)' : ''}
                             </div>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-amber-300 font-bold">
-                          {p.stats.tokens}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-sans">
-                          {isDeleting ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <span className="text-[10px] text-rose-300">Confermi?</span>
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePlayer(p.id)}
-                                className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer"
-                              >
-                                Sì, elimina
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => startEditingPlayer(p)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                              >
-                                <Edit3 className="w-3 h-3 text-emerald-400" /> Modifica Iniziali
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmId(p.id)}
-                                title="Elimina giocatore dalla rosa"
-                                aria-label={`Elimina ${p.name}`}
-                                className="p-1 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 cursor-pointer transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
+                            {weightToFutStat(p.weights.portiere) !== weightToFutStat(initWeights.portiere) && (
+                              <div className="text-[10px] text-slate-500">
+                                Iniz: {weightToFutStat(initWeights.portiere)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-amber-300 font-bold">
+                            {p.id === WILD_CARD_PLAYER_ID ? '—' : p.stats.tokens}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-sans">
+                            {p.id === WILD_CARD_PLAYER_ID ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-semibold">
+                                Default · Fisso 65
+                              </span>
+                            ) : isDeleting ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="text-[10px] text-rose-300">Confermi?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePlayer(p.id)}
+                                  className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold cursor-pointer"
+                                >
+                                  Sì, elimina
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-[11px] cursor-pointer"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingPlayer(p)}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <Edit3 className="w-3 h-3 text-emerald-400" /> Modifica Iniziali
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmId(p.id)}
+                                  title="Elimina giocatore dalla rosa"
+                                  aria-label={`Elimina ${p.name}`}
+                                  className="p-1 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 cursor-pointer transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
                     );
                   })}
                 </tbody>
@@ -1944,7 +2285,7 @@ export const AdminBackofficeView: React.FC<{
                               return (
                                 <option key={u.uid} value={u.uid}>
                                   {u.display_name} ({u.email})
-                                  {u.is_admin ? ' · [Direttore]' : ''}
+                                  {u.is_admin ? ' · [Presidente]' : ''}
                                   {linkedP ? ` → ${linkedP.name}` : ' → [Non collegato]'}
                                 </option>
                               );
@@ -1968,18 +2309,20 @@ export const AdminBackofficeView: React.FC<{
                             className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
                           >
                             <option value="">— Nessun giocatore collegato —</option>
-                            {players.map((p) => {
-                              const ownerUser = users.find(
-                                (other) =>
-                                  other.linked_player_id === p.id && other.uid !== effectiveUid
-                              );
-                              return (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.wants_to_be_gk ? 'POR' : p.computed.role_label})
-                                  {ownerUser ? ` — già di ${ownerUser.display_name}` : ''}
-                                </option>
-                              );
-                            })}
+                            {players
+                              .filter((p) => p.id !== WILD_CARD_PLAYER_ID)
+                              .map((p) => {
+                                const ownerUser = users.find(
+                                  (other) =>
+                                    other.linked_player_id === p.id && other.uid !== effectiveUid
+                                );
+                                return (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name} ({p.wants_to_be_gk ? 'POR' : p.computed.role_label})
+                                    {ownerUser ? ` — già di ${ownerUser.display_name}` : ''}
+                                  </option>
+                                );
+                              })}
                           </select>
                         </div>
 
@@ -2067,7 +2410,7 @@ export const AdminBackofficeView: React.FC<{
                           <span className="text-slate-400">({u.email})</span>
                           {u.is_admin && (
                             <span className="text-emerald-400 font-semibold">
-                              · Direttore
+                              · Presidente
                             </span>
                           )}
                           <span className="text-slate-500">
@@ -2101,18 +2444,20 @@ export const AdminBackofficeView: React.FC<{
                           className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400 min-w-[220px]"
                         >
                           <option value="">— Nessun giocatore collegato —</option>
-                          {players.map((p) => {
-                            const ownerUser = users.find(
-                              (other) =>
-                                other.linked_player_id === p.id && other.uid !== u.uid
-                            );
-                            return (
-                              <option key={p.id} value={p.id}>
-                                {p.name} ({p.wants_to_be_gk ? 'POR' : p.computed.role_label})
-                                {ownerUser ? ` — già di ${ownerUser.display_name}` : ''}
-                              </option>
-                            );
-                          })}
+                          {players
+                            .filter((p) => p.id !== WILD_CARD_PLAYER_ID)
+                            .map((p) => {
+                              const ownerUser = users.find(
+                                (other) =>
+                                  other.linked_player_id === p.id && other.uid !== u.uid
+                              );
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} ({p.wants_to_be_gk ? 'POR' : p.computed.role_label})
+                                  {ownerUser ? ` — già di ${ownerUser.display_name}` : ''}
+                                </option>
+                              );
+                            })}
                         </select>
 
                         <button
@@ -2314,7 +2659,7 @@ export const AdminBackofficeView: React.FC<{
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 font-mono-tabular text-white focus:border-emerald-500 focus:outline-none"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Definisce il distacco minimo (|δ| &gt; 0.20) tra polo offensivo e difensivo per essere Attaccante o Difensore anziché Tuttocampista.
+                  Definisce il distacco minimo (|δ| &gt; {(cfgDraft.role_threshold_tau ?? 0.2).toFixed(2)}) tra polo offensivo e difensivo per essere Attaccante o Difensore anziché Tuttocampista.
                 </span>
               </div>
 
@@ -2885,6 +3230,26 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
     [match.team_1.total_power, match.team_2.total_power, config]
   );
 
+  const customBalancePercentage = useMemo(() => {
+    const convocatiPlayers = match.convocati_ids
+      .map((id) => playerMap.get(id))
+      .filter((p): p is Player => Boolean(p));
+    if (convocatiPlayers.length !== 10) {
+      return engineResult.proposal_A.micro.balance_percentage;
+    }
+    try {
+      const evaluated = recalculateAfterManualSwap(
+        convocatiPlayers,
+        { gk_id: match.team_1.gk_id, outfield_ids: match.team_1.outfield_ids },
+        { gk_id: match.team_2.gk_id, outfield_ids: match.team_2.outfield_ids },
+        config
+      );
+      return evaluated.micro.balance_percentage;
+    } catch {
+      return engineResult.proposal_A.micro.balance_percentage;
+    }
+  }, [match.convocati_ids, match.team_1, match.team_2, playerMap, config, engineResult.proposal_A.micro.balance_percentage]);
+
   const activeOdds = activeTab === 'A' ? oddsA : activeTab === 'B' ? oddsB : oddsCurrent;
 
   const renderTeamRoster = (
@@ -3126,14 +3491,14 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {renderTeamRoster(
-              'Squadra Gabry',
+              'I Gabry',
               engineResult.proposal_A.team_1.total_power,
               'bg-emerald-400',
               engineResult.proposal_A.team_1.gk_id,
               engineResult.proposal_A.team_1.outfield_ids
             )}
             {renderTeamRoster(
-              'Squadra Piero',
+              'I Piero',
               engineResult.proposal_A.team_2.total_power,
               'bg-sky-400',
               engineResult.proposal_A.team_2.gk_id,
@@ -3156,14 +3521,14 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {renderTeamRoster(
-              'Squadra Gabry',
+              'I Gabry',
               engineResult.proposal_B.team_1.total_power,
               'bg-emerald-400',
               engineResult.proposal_B.team_1.gk_id,
               engineResult.proposal_B.team_1.outfield_ids
             )}
             {renderTeamRoster(
-              'Squadra Piero',
+              'I Piero',
               engineResult.proposal_B.team_2.total_power,
               'bg-sky-400',
               engineResult.proposal_B.team_2.gk_id,
@@ -3175,25 +3540,30 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
       {activeTab === 'CUSTOM' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 px-1">
             <span>
-              <strong className="text-white">Bozza Corrente</strong>: Visualizza i giocatori attualmente schierati ed effettua scambi manuali.
+              <strong className="text-white">Bozza Corrente / Proposta Custom</strong>: Visualizza i giocatori attualmente schierati ed effettua scambi manuali.
             </span>
-            <span className="text-slate-400">
-              Stato: <strong className="text-white">{match.selected_solution}</strong>
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-slate-400">
+                Stato: <strong className="text-white">{match.selected_solution}</strong>
+              </span>
+              <span className="font-semibold text-emerald-400">
+                Indice di Equilibrio: {customBalancePercentage}%
+              </span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {renderTeamRoster(
-              'Squadra Gabry',
+              'I Gabry',
               match.team_1.total_power,
               'bg-emerald-400',
               match.team_1.gk_id,
               match.team_1.outfield_ids
             )}
             {renderTeamRoster(
-              'Squadra Piero',
+              'I Piero',
               match.team_2.total_power,
               'bg-sky-400',
               match.team_2.gk_id,
@@ -3207,7 +3577,7 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
               <div>
                 <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                   <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
-                  Scambio Manuale tra Giocatori (Squadra Gabry ↔ Squadra Piero)
+                  Scambio Manuale tra Giocatori (I Gabry ↔ I Piero)
                 </h4>
                 <p className="text-[11px] text-slate-400">
                   Scambia qualsiasi giocatore tra le due formazioni. Le quote dinamiche si ricalcoleranno istantaneamente.
@@ -3217,17 +3587,17 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
 
             <div className="flex flex-wrap items-center gap-2.5">
               <select
-                aria-label="Seleziona giocatore Squadra 1 per swap"
+                aria-label="Seleziona giocatore I Gabry per swap"
                 value={swapP1}
                 onChange={(e) => setSwapP1(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
               >
-                <option value="">Giocatore Squadra 1...</option>
+                <option value="">Giocatore I Gabry...</option>
                 {team1AllIds.map((id) => {
                   const p = playerMap.get(id);
                   return (
                     <option key={id} value={id}>
-                      G1: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                      I Gabry: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
                     </option>
                   );
                 })}
@@ -3236,17 +3606,17 @@ const UnifiedProposalsCard: React.FC<UnifiedProposalsCardProps> = ({
               <span className="text-slate-500 font-bold">↔</span>
 
               <select
-                aria-label="Seleziona giocatore Squadra 2 per swap"
+                aria-label="Seleziona giocatore I Piero per swap"
                 value={swapP2}
                 onChange={(e) => setSwapP2(e.target.value)}
                 className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
               >
-                <option value="">Giocatore Squadra 2...</option>
+                <option value="">Giocatore I Piero...</option>
                 {team2AllIds.map((id) => {
                   const p = playerMap.get(id);
                   return (
                     <option key={id} value={id}>
-                      G2: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
+                      I Piero: {p?.name ?? id} ({p?.wants_to_be_gk ? 'POR' : p?.computed.role_label})
                     </option>
                   );
                 })}

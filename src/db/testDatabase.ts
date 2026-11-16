@@ -11,8 +11,11 @@ import {
 import {
   computeMatchOdds,
   computePlayerMetrics,
+  futStatToWeight,
   generateFairQuestionnaire,
   runThreeStageBalancingEngine,
+  WILD_CARD_AVATAR_URL,
+  WILD_CARD_PLAYER_ID,
 } from '../engine/mathEngine';
 
 export type DatabaseEnvironment = 'TEST_DB' | 'PRODUCTION_DB';
@@ -106,6 +109,7 @@ export interface TestDatabaseSnapshot {
   players: Player[];
   users: UserAccount[];
   match: Match;
+  matchesHistory: Match[];
 }
 
 export interface TestScenarioDescriptor {
@@ -208,6 +212,7 @@ interface PlayerBlueprint {
   id: string;
   name: string;
   nickname?: string;
+  avatar_url?: string;
   claimed_by_uid: string;
   claim_status: 'UNCLAIMED' | 'PENDING_APPROVAL' | 'VALIDATED';
   wants_to_be_gk: boolean;
@@ -221,11 +226,61 @@ interface PlayerBlueprint {
   netProfit?: number;
 }
 
+export function buildWildCardPlayer(
+  config: Pick<GlobalConfig, 'polar_weights' | 'role_threshold_tau'> = DEFAULT_GLOBAL_CONFIG
+): Player {
+  const w65 = futStatToWeight(65);
+  const fixedWeights: PlayerWeights = {
+    tiro: w65,
+    velocita: w65,
+    passaggio: w65,
+    resistenza: w65,
+    difesa: w65,
+    portiere: w65,
+  };
+  const m = computePlayerMetrics(fixedWeights, false, config);
+  return {
+    id: WILD_CARD_PLAYER_ID,
+    name: 'Wild Card',
+    nickname: 'Lo sconosciuto',
+    avatar_url: WILD_CARD_AVATAR_URL,
+    claimed_by_uid: '',
+    claim_status: 'UNCLAIMED',
+    is_active: true,
+    weights: { ...fixedWeights },
+    initial_weights: { ...fixedWeights },
+    wants_to_be_gk: false,
+    accept_odds_changes: true,
+    computed: m.computed,
+    attr_votes_count: {
+      tiro: 0,
+      velocita: 0,
+      passaggio: 0,
+      resistenza: 0,
+      difesa: 0,
+      portiere: 0,
+    },
+    stats: {
+      tokens: 0,
+      matches_played: 0,
+      matches_won: 0,
+      matches_drawn: 0,
+      bets_total: 0,
+      bets_won: 0,
+      bets_net_profit: 0,
+      votes_completed_matches: 0,
+    },
+  };
+}
+
 function createPlayerEntity(
   bp: PlayerBlueprint,
   config: GlobalConfig,
   zeroStats = false
 ): Player {
+  if (bp.id === WILD_CARD_PLAYER_ID) {
+    return buildWildCardPlayer(config);
+  }
   const m = computePlayerMetrics(bp.weights, bp.wants_to_be_gk, config);
   const baseVotes = zeroStats ? 0 : bp.votesCount ?? 8;
 
@@ -233,12 +288,13 @@ function createPlayerEntity(
     id: bp.id,
     name: bp.name,
     ...(bp.nickname ? { nickname: bp.nickname } : {}),
-    avatar_url: '',
+    avatar_url: bp.avatar_url ?? '',
     claimed_by_uid: bp.claimed_by_uid,
     claim_status: bp.claim_status,
     is_active: true,
     weights: { ...bp.weights },
     wants_to_be_gk: bp.wants_to_be_gk,
+    accept_odds_changes: true,
     computed: m.computed,
     attr_votes_count: {
       tiro: baseVotes,
@@ -472,14 +528,37 @@ const BASE_BLUEPRINTS: PlayerBlueprint[] = [
     betsWon: 0,
     netProfit: 0,
   },
+  {
+    id: WILD_CARD_PLAYER_ID,
+    name: 'Wild Card',
+    nickname: 'Lo sconosciuto',
+    avatar_url: WILD_CARD_AVATAR_URL,
+    claimed_by_uid: '',
+    claim_status: 'UNCLAIMED',
+    wants_to_be_gk: false,
+    weights: {
+      tiro: futStatToWeight(65),
+      velocita: futStatToWeight(65),
+      passaggio: futStatToWeight(65),
+      resistenza: futStatToWeight(65),
+      difesa: futStatToWeight(65),
+      portiere: futStatToWeight(65),
+    },
+    tokens: 0,
+    played: 0,
+    won: 0,
+    betsTotal: 0,
+    betsWon: 0,
+    netProfit: 0,
+  },
 ];
 
 export function buildTestUsers(): UserAccount[] {
   return [
     {
       uid: 'uid_admin_diego',
-      email: getResolvedDirettoreEmail() || 'direttore@calcetto-test.it',
-      display_name: 'Il Direttore (Admin / Marco)',
+      email: getResolvedDirettoreEmail() || 'presidente@calcetto-test.it',
+      display_name: 'Il Presidente (Admin / Marco)',
       linked_player_id: 'player_marco',
       auth_status: 'VALIDATED',
       is_admin: true,
@@ -657,12 +736,119 @@ export function buildTestDatabaseSnapshot(
     },
   };
 
+  const sampleHistoryMatches: Match[] = zeroStats
+    ? []
+    : [
+        {
+          id: 'match_history_1',
+          date_label: 'Giovedì 5 Novembre — Ore 21:00 · Sporting Club',
+          status: 'ARCHIVED',
+          convocati_ids: convocatiIds,
+          active_gks_ids: engineRes.active_gks_ids,
+          selected_solution: 'A',
+          team_1: engineRes.proposal_A.team_1,
+          team_2: engineRes.proposal_A.team_2,
+          score: { team_1: 7, team_2: 5, winner: '1' },
+          odds: computeMatchOdds(
+            engineRes.proposal_A.team_1.total_power,
+            engineRes.proposal_A.team_2.total_power,
+            config
+          ),
+          bets: {
+            player_marco: {
+              pick: '1',
+              amount: 40,
+              potential_payout: 74,
+              settled: true,
+              status: 'WON',
+            },
+            player_nicolo: {
+              pick: '1',
+              amount: 50,
+              potential_payout: 93,
+              settled: true,
+              status: 'WON',
+            },
+            player_giorgio: {
+              pick: '2',
+              amount: 30,
+              potential_payout: 56,
+              settled: true,
+              status: 'LOST',
+            },
+          },
+          voting_tracker: {
+            voters_completed_ids: convocatiIds,
+            received_count_by_player: Object.fromEntries(convocatiIds.map((id) => [id, 5])),
+            anonymous_accumulators: {},
+          },
+        },
+        {
+          id: 'match_history_2',
+          date_label: 'Giovedì 29 Ottobre — Ore 21:00 · Sporting Club',
+          status: 'ARCHIVED',
+          convocati_ids: [
+            'player_gigi',
+            'player_samir',
+            'player_giorgio',
+            'player_paolo',
+            'player_leonardo',
+            'player_nicolo',
+            'player_sandro',
+            'player_claudio',
+            'player_matteo',
+            'player_federico',
+          ],
+          active_gks_ids: ['player_gigi', 'player_samir'],
+          selected_solution: 'B',
+          team_1: engineRes.proposal_B.team_1,
+          team_2: engineRes.proposal_B.team_2,
+          score: { team_1: 4, team_2: 6, winner: '2' },
+          odds: computeMatchOdds(
+            engineRes.proposal_B.team_1.total_power,
+            engineRes.proposal_B.team_2.total_power,
+            config
+          ),
+          bets: {
+            player_marco: {
+              pick: '1',
+              amount: 25,
+              potential_payout: 46,
+              settled: true,
+              status: 'LOST',
+            },
+            player_nicolo: {
+              pick: '2',
+              amount: 30,
+              potential_payout: 56,
+              settled: true,
+              status: 'WON',
+            },
+          },
+          voting_tracker: {
+            voters_completed_ids: [
+              'player_gigi',
+              'player_samir',
+              'player_giorgio',
+              'player_paolo',
+              'player_nicolo',
+              'player_sandro',
+              'player_claudio',
+              'player_federico',
+            ],
+            received_count_by_player: {},
+            anonymous_accumulators: {},
+          },
+        },
+      ];
+
   return {
     scenarioId,
     config,
     players,
     users,
     match,
+    matchesHistory: isVotingScenario ? [match, ...sampleHistoryMatches] : sampleHistoryMatches,
   };
 }
 

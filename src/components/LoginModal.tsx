@@ -136,7 +136,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                         {u.display_name}
                       </div>
                       <div className="text-[10px] text-slate-400 truncate">
-                        {isDir ? 'Il Direttore' : u.auth_status}
+                        {isDir ? 'Il Presidente' : u.auth_status}
                       </div>
                     </div>
                   </div>

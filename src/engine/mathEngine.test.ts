@@ -150,10 +150,10 @@ test('Modulo 04 & Modulo 05: Normalizzazione voti, EMA, Scala FUT e Liquidazione
 });
 
 test('Ambiente Database di Test (testDatabase.ts): Verifica tutti i 5 Scenari e Simulazione Ciclo Completo (Scommesse -> Risultato -> Least-Voted First 10/10 -> EMA)', () => {
-  // 1. Verifica generazione dei 5 scenari del DB di Test
+  // 1. Verifica generazione dei 5 scenari del DB di Test (14 giocatori + 1 Wild Card "Lo sconosciuto" = 15)
   const asymSnap = buildTestDatabaseSnapshot('ASYMMETRIC_POOL');
   assert.equal(asymSnap.match.status, 'OPEN_FOR_BETS');
-  assert.equal(asymSnap.players.length, 14);
+  assert.equal(asymSnap.players.length, 15);
 
   const symSnap = buildTestDatabaseSnapshot('SYMMETRIC_POOL');
   const symConvocati = symSnap.players.filter((p) =>
@@ -202,7 +202,7 @@ test('Ambiente Database di Test (testDatabase.ts): Verifica tutti i 5 Scenari e 
     allVotedMatch,
     asymSnap.config
   );
-  assert.equal(consolidatedPlayers.length, 14);
+  assert.equal(consolidatedPlayers.length, 15);
 });
 
 test('Modulo 02 - Stadio I: Coefficienti Polari distinti tra Valutazione Offensiva (S_A) e Difensiva (S_D)', () => {
@@ -243,7 +243,7 @@ test('Modulo 02 - Stadio I: Coefficienti Polari distinti tra Valutazione Offensi
 });
 
 test('Modulo 04: Modifica del Valore Iniziale ricalcola il valore attuale preservando il delta EMA dei voti passati', () => {
-  // Giocatore base creato dal Direttore con tutti pesi iniziali a 0.50 (FUT OVR ~70)
+  // Giocatore base creato dal Presidente con tutti pesi iniziali a 0.50 (FUT OVR ~70)
   const basePlayer = makeTestPlayer('p_initial', 'Mario Evoluto', [0.5, 0.5, 0.5, 0.5, 0.5, 0.2]);
   const playerWithInit: Player = {
     ...basePlayer,
@@ -295,7 +295,7 @@ test('Modulo 04: Modifica del Valore Iniziale ricalcola il valore attuale preser
   assert.equal(afterMatch.weights.tiro, 0.575);
   assert.equal(afterMatch.initial_weights!.tiro, 0.5);
 
-  // 2. Ora il Direttore modifica il Valore Iniziale del tiro portandolo da 0.50 a 0.70:
+  // 2. Ora il Presidente modifica il Valore Iniziale del tiro portandolo da 0.50 a 0.70:
   // Il nuovo valore attuale deve essere 0.70 + (0.575 - 0.50) = 0.775 (preservando il +0.075 guadagnato coi voti)
   const newInitial = {
     ...afterMatch.initial_weights!,
@@ -377,4 +377,33 @@ test('Questionario Dinamico: Formulazione varia delle domande per evitare monoto
   assert.ok(hasDiffPhrasing, 'Le domande devono variare la formulazione tra chiamate con seed diversi');
 });
 
+test('Soglia di Ruolo Tau = 0.10: Giocatori con delta_i = +0.11 o -0.11 classificati correttamente come ATT e DIF', () => {
+  const tau01Config = {
+    ...DEFAULT_GLOBAL_CONFIG,
+    role_threshold_tau: 0.1,
+  };
 
+  // Con polar_weights di default (a=0.50, b=0.25, c=0.10, d=0.15):
+  // Se velocita = passaggio = resistenza = 0.50, tiro = 0.61, difesa = 0.39:
+  // S_A = 0.50*0.61 + 0.50*0.50 = 0.555
+  // S_D = 0.50*0.39 + 0.50*0.50 = 0.445
+  // S_A + S_D = 1.000, S_A - S_D = +0.1100 -> delta_i = +0.11
+  const att011 = computePlayerMetrics(
+    { tiro: 0.61, velocita: 0.5, passaggio: 0.5, resistenza: 0.5, difesa: 0.39, portiere: 0.2 },
+    false,
+    tau01Config
+  );
+  assert.equal(att011.delta_i, 0.11);
+  assert.equal(att011.C_i, 1);
+  assert.equal(att011.computed.role_label, 'ATT');
+
+  // Viceversa: tiro = 0.39, difesa = 0.61 -> delta_i = -0.11
+  const dif011 = computePlayerMetrics(
+    { tiro: 0.39, velocita: 0.5, passaggio: 0.5, resistenza: 0.5, difesa: 0.61, portiere: 0.2 },
+    false,
+    tau01Config
+  );
+  assert.equal(dif011.delta_i, -0.11);
+  assert.equal(dif011.C_i, -1);
+  assert.equal(dif011.computed.role_label, 'DIF');
+});

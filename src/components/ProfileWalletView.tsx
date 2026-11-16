@@ -2,10 +2,12 @@ import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { FutCard } from './FutCard';
 import { preprocessPlayerPhoto } from '../lib/imageProcessor';
+import { WILD_CARD_PLAYER_ID } from '../engine/mathEngine';
 import {
   Camera,
   Clock,
   Coins,
+  HelpCircle,
   LogIn,
   LogOut,
   Settings,
@@ -36,11 +38,14 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
     submitAccountClaim,
     unlinkAccountClaim,
     updatePlayerPhoto,
+    updatePlayerOddsPreference,
     showToast,
   } = useApp();
 
   const availablePlayers = players.filter(
-    (p) => p.claim_status === 'UNCLAIMED' || p.id === currentUser?.linked_player_id
+    (p) =>
+      p.id !== WILD_CARD_PLAYER_ID &&
+      (p.claim_status === 'UNCLAIMED' || p.id === currentUser?.linked_player_id)
   );
 
   const [selectedClaimId, setSelectedClaimId] = useState<string>(
@@ -49,6 +54,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
   const [newPlayerCustomName, setNewPlayerCustomName] = useState<string>('');
   const [isChangingPlayer, setIsChangingPlayer] = useState<boolean>(false);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState<boolean>(false);
+  const [showOddsInfo, setShowOddsInfo] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   React.useEffect(() => {
@@ -132,15 +138,15 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Prominent Backoffice Entry Card for Il Direttore */}
+      {/* Prominent Backoffice Entry Card for Il Presidente */}
       {isDirettore && (
         <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> Ruolo: Il Direttore
+              <ShieldCheck className="w-3.5 h-3.5" /> Ruolo: Il Presidente
             </div>
             <h2 className="text-xl font-display font-bold text-white mt-1.5">
-              Backoffice del Direttore
+              Backoffice del Presidente
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Gestione convocazioni, motore di bilanciamento matematico, approvazioni e parametri di gioco.
@@ -181,7 +187,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
             <div>
               <div className="text-xs text-slate-400">
                 Stato account: <strong className="text-emerald-400">{currentUser.auth_status}</strong>
-                {isDirettore ? ' · Direttore' : ''}
+                {isDirettore ? ' · Presidente' : ''}
                 {currentPlayer ? (
                   <span>
                     {' · '}Giocatore collegato: <strong className="text-white">{currentPlayer.name}</strong>
@@ -218,7 +224,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
           </div>
         </div>
 
-        {/* STATE: UNCLAIMED or Direttore without linked player or Changing Player */}
+        {/* STATE: UNCLAIMED or Presidente without linked player or Changing Player */}
         {(needsPlayerLink || isChangingPlayer) && (
           <div className="pt-5 space-y-4">
             <div className="text-xs font-medium text-amber-400 flex items-center gap-1.5">
@@ -226,8 +232,8 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
             </div>
             <p className="text-xs text-slate-400 max-w-xl">
               {isDirettore
-                ? 'Seleziona il tuo profilo giocatore dalla rosa (oppure creane uno nuovo) per collegare immediatamente il tuo account Direttore e partecipare a partite, scommesse e votazioni.'
-                : `Scegli il tuo nome nella lista dei giocatori per collegare la tua Card FUT e ricevere il bonus di +${config.initial_tokens} Token non appena Il Direttore approverà la richiesta.`}
+                ? 'Seleziona il tuo profilo giocatore dalla rosa (oppure creane uno nuovo) per collegare immediatamente il tuo account Presidente e partecipare a partite, scommesse e votazioni.'
+                : `Scegli il tuo nome nella lista dei giocatori per collegare la tua Card FUT e ricevere il bonus di +${config.initial_tokens} Token non appena Il Presidente approverà la richiesta.`}
             </p>
 
             <form onSubmit={handleClaimSubmit} className="space-y-3 max-w-md">
@@ -262,7 +268,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                   className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  {isDirettore ? 'Collega Subito al Mio Account' : 'Invia Richiesta al Direttore'}
+                  {isDirettore ? 'Collega Subito al Mio Account' : 'Invia Richiesta al Presidente'}
                 </button>
                 {currentPlayer && (
                   <button
@@ -292,7 +298,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                 Richiesta di associazione inviata
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                La tua richiesta per &ldquo;{currentPlayer?.name ?? currentUser.linked_player_id}&rdquo; è in attesa di approvazione da parte del Direttore.
+                La tua richiesta per &ldquo;{currentPlayer?.name ?? currentUser.linked_player_id}&rdquo; è in attesa di approvazione da parte del Presidente.
               </p>
             </div>
           </div>
@@ -392,6 +398,91 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                   {currentPlayer.stats.votes_completed_matches}
                 </div>
               </div>
+            </div>
+
+            {/* Impostazioni Scommesse Live: Flag "Accetta variazioni di quota" */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-white">
+                    Accetta variazioni di quota
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowOddsInfo((prev) => !prev)}
+                    aria-label="Informazioni su Accetta variazioni di quota"
+                    title="Clicca per scoprire come funziona questa opzione"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-emerald-400 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>Info</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={currentPlayer.accept_odds_changes !== false}
+                  onClick={() =>
+                    updatePlayerOddsPreference(
+                      currentPlayer.id,
+                      !(currentPlayer.accept_odds_changes !== false)
+                    )
+                  }
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    currentPlayer.accept_odds_changes !== false
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      currentPlayer.accept_odds_changes !== false
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-400">
+                Stato attuale:{' '}
+                {currentPlayer.accept_odds_changes !== false ? (
+                  <strong className="text-emerald-400">
+                    Attivo — Mantieni la scommessa con le nuove quote se cambiano le formazioni
+                  </strong>
+                ) : (
+                  <strong className="text-amber-400">
+                    Disattivato — Annulla e rimborsa la scommessa se cambiano le formazioni
+                  </strong>
+                )}
+              </div>
+
+              {showOddsInfo && (
+                <div className="bg-slate-900/95 border border-emerald-500/30 rounded-xl p-3.5 text-xs text-slate-300 space-y-1.5">
+                  <div className="font-semibold text-emerald-400 flex items-center justify-between">
+                    <span>Come funziona &ldquo;Accetta variazioni di quota&rdquo;?</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowOddsInfo(false)}
+                      className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Questa opzione si attiva quando le <strong>formazioni subiscono una variazione</strong> (una sostituzione dell&apos;ultimo minuto o uno scambio tra squadre), sia mentre le scommesse sono aperte (<em>OPEN_FOR_BETS</em>) sia a partita in corso (Stadio 3.0 <em>IN_PLAY</em>). Le quote 1X2 variano come conseguenza diretta del cambio formazione:
+                  </p>
+                  <ul className="text-[11px] text-slate-300 space-y-1 pl-4 list-disc">
+                    <li>
+                      <strong className="text-emerald-400">Se attivo (Accetto):</strong> in caso di sostituzione o cambio formazione, la tua scommessa rimane piazzata e la vincita potenziale si adegua automaticamente alle nuove quote aggiornate.
+                    </li>
+                    <li>
+                      <strong className="text-amber-400">Se disattivato (Non accetto):</strong> non appena avviene una sostituzione o variazione nella formazione, la tua scommessa viene automaticamente <strong>annullata</strong> e i Token puntati ti vengono <strong>immediatamente rimborsati</strong> sul wallet (e se le scommesse sono ancora aperte potrai piazzarne una nuova).
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Token Rules */}

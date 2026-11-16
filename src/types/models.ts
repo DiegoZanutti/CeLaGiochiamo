@@ -111,6 +111,7 @@ export interface Player {
   attr_votes_count: AttrVotesCount;
   stats: PlayerStats;
   initial_weights?: PlayerWeights;
+  accept_odds_changes?: boolean;
 }
 
 export interface UserAccount {
@@ -148,7 +149,7 @@ export interface MatchBet {
   amount: number;
   potential_payout: number;
   settled: boolean;
-  status?: 'PENDING' | 'WON' | 'LOST';
+  status?: 'PENDING' | 'WON' | 'LOST' | 'CANCELLED';
 }
 
 export interface AnonymousAttrAccumulator {

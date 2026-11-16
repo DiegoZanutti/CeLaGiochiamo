@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { WILD_CARD_PLAYER_ID } from '../engine/mathEngine';
 import { Award, Coins, Flame, Trophy } from 'lucide-react';
 
 type LeaderboardTab = 'ORACOLO' | 'PAPERONI' | 'RE_DEL_CAMPO' | 'STAKANOVISTI';
@@ -8,31 +9,22 @@ export const LeaderboardsView: React.FC = () => {
   const { players } = useApp();
   const [activeTab, setActiveTab] = useState<LeaderboardTab>('RE_DEL_CAMPO');
 
+  const eligiblePlayers = useMemo(
+    () => players.filter((p) => p.is_active && p.id !== WILD_CARD_PLAYER_ID),
+    [players]
+  );
+
   const totalMatchesOrganized = useMemo(() => {
-    if (players.length === 0) return 1;
+    if (eligiblePlayers.length === 0) return 1;
     const maxPlayed = Math.max(
       1,
-      ...players.map((p) => p.stats.matches_played)
+      ...eligiblePlayers.map((p) => p.stats.matches_played)
     );
     return maxPlayed;
-  }, [players]);
-
-  if (players.length === 0) {
-    return (
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-lg mx-auto my-8 space-y-3 shadow-lg">
-        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-2">
-          <Trophy className="w-6 h-6" />
-        </div>
-        <h2 className="text-xl font-display font-bold text-white">Classifiche</h2>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Nessuna statistica disponibile. Le classifiche (Re del Campo, Oracolo, Paperoni, Stakanovisti) verranno aggiornate automaticamente al termine delle prime partite giocate.
-        </p>
-      </div>
-    );
-  }
+  }, [eligiblePlayers]);
 
   const sortedRows = useMemo(() => {
-    const list = [...players].filter((p) => p.is_active);
+    const list = [...eligiblePlayers];
 
     if (activeTab === 'ORACOLO') {
       // Modulo 05 (3.1): Primary = bets_won desc, Secondary = Win Rate % desc
@@ -82,7 +74,21 @@ export const LeaderboardsView: React.FC = () => {
       }
       return b.stats.votes_completed_matches - a.stats.votes_completed_matches;
     });
-  }, [players, activeTab]);
+  }, [eligiblePlayers, activeTab]);
+
+  if (eligiblePlayers.length === 0) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-lg mx-auto my-8 space-y-3 shadow-lg">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-2">
+          <Trophy className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-display font-bold text-white">Classifiche</h2>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Nessuna statistica disponibile. Le classifiche (Re del Campo, Oracolo, Paperoni, Stakanovisti) verranno aggiornate automaticamente al termine delle prime partite giocate.
+        </p>
+      </div>
+    );
+  }
 
   const tabs: Array<{
     id: LeaderboardTab;

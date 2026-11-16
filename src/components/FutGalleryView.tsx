@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { AllAttrKey, Player, RoleLabel } from '../types/models';
-import { getPlayerFutOverall, weightToFutStat } from '../engine/mathEngine';
+import {
+  getPlayerFutOverall,
+  weightToFutStat,
+  WILD_CARD_PLAYER_ID,
+} from '../engine/mathEngine';
 import { FutCard, FutCardDetailModal } from './FutCard';
 import { Search, SlidersHorizontal } from 'lucide-react';
 
@@ -22,12 +26,14 @@ export const FutGalleryView: React.FC = () => {
       players.filter(
         (p) =>
           p.is_active &&
-          (p.stats?.votes_completed_matches ?? 0) >= MIN_VOTED_MATCHES_FOR_FUT_GALLERY
+          (p.id === WILD_CARD_PLAYER_ID ||
+            (p.stats?.votes_completed_matches ?? 0) >= MIN_VOTED_MATCHES_FOR_FUT_GALLERY)
       ),
     [players]
   );
 
   const filteredAndSortedPlayers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return unlockedPlayers
       .filter((p) => {
         if (roleFilter === 'ALL') return true;
@@ -36,8 +42,11 @@ export const FutGalleryView: React.FC = () => {
           : p.computed.role_label;
         return effectiveRole === roleFilter;
       })
-      .filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      .filter(
+        (p) =>
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          (p.nickname || '').toLowerCase().includes(q)
       )
       .sort((a, b) => {
         if (sortBy === 'overall') {

@@ -6,6 +6,7 @@ import {
   getFutCardTier,
   getPlayerFutOverall,
   weightToFutStat,
+  WILD_CARD_PLAYER_ID,
 } from '../engine/mathEngine';
 import { useApp } from '../context/AppContext';
 import { renderFutCardCutout } from '../lib/imageProcessor';
@@ -100,6 +101,7 @@ export const FutCard: React.FC<FutCardProps> = ({
   size = 'md',
   highlightBadge,
 }) => {
+  const { config } = useApp();
   const ovr = getPlayerFutOverall(player);
   const tier = getFutCardTier(ovr);
   const vis = TIER_VISUALS[tier];
@@ -114,16 +116,26 @@ export const FutCard: React.FC<FutCardProps> = ({
     POR: weightToFutStat(player.weights.portiere),
   };
 
-  const roleLabel = player.wants_to_be_gk ? 'POR' : player.computed.role_label;
+  const liveMetrics = computePlayerMetrics(
+    player.weights,
+    player.wants_to_be_gk,
+    config
+  );
+  const roleLabel = player.wants_to_be_gk ? 'POR' : liveMetrics.computed.role_label;
   const isCompact = size === 'sm';
   const Wrapper = onClick ? 'button' : 'div';
 
+  const isWildCard = player.id === WILD_CARD_PLAYER_ID;
   const [futPortraitUrl, setFutPortraitUrl] = useState<string>(player.avatar_url || '');
 
   useEffect(() => {
     let active = true;
     if (!player.avatar_url) {
       setFutPortraitUrl('');
+      return;
+    }
+    if (isWildCard) {
+      setFutPortraitUrl(player.avatar_url);
       return;
     }
     renderFutCardCutout(player.avatar_url).then((processedUrl) => {
@@ -134,7 +146,7 @@ export const FutCard: React.FC<FutCardProps> = ({
     return () => {
       active = false;
     };
-  }, [player.avatar_url]);
+  }, [player.avatar_url, isWildCard]);
 
   return (
     <Wrapper
@@ -523,11 +535,22 @@ export const FutCardDetailModal: React.FC<{
     config
   );
   const tau = config.role_threshold_tau;
-  const deltaPercent = ((metrics.delta_i + 1) / 2) * 100;
-  const tauLeftPercent = ((-tau + 1) / 2) * 100;
-  const tauRightPercent = ((tau + 1) / 2) * 100;
 
-  const activeRoleCode = player.wants_to_be_gk ? 'POR' : player.computed.role_label;
+  // Scala visiva non-lineare (logaritmica simmetrica) per dilatare il centro denso [-0.4, +0.4] e comprimere gli estremi [-1.0, +1.0]
+  const LOG_K = 8;
+  const logVisualNormalized = (val: number) => {
+    const clamped = Math.max(-1, Math.min(1, val));
+    return Math.sign(clamped) * (Math.log(1 + LOG_K * Math.abs(clamped)) / Math.log(1 + LOG_K));
+  };
+  const toVisualPercent = (val: number) => ((logVisualNormalized(val) + 1) / 2) * 100;
+
+  const deltaPercent = toVisualPercent(metrics.delta_i);
+  const tauLeftPercent = toVisualPercent(-tau);
+  const tauRightPercent = toVisualPercent(tau);
+  const formattedDelta = `${metrics.delta_i > 0 ? '+' : ''}${metrics.delta_i.toFixed(2)}`;
+  const formattedTau = tau.toFixed(2);
+
+  const activeRoleCode = player.wants_to_be_gk ? 'POR' : metrics.computed.role_label;
   const activeRoleTitle = ROLE_FULL_NAME[activeRoleCode] ?? activeRoleCode;
 
   return (
@@ -567,9 +590,9 @@ export const FutCardDetailModal: React.FC<{
           <div className="md:col-span-7 space-y-4">
             <PentagonRadar weights={player.weights} />
 
-            {/* Clean Tactical Role Bar (Without math formulas or (-1.0)/(+1.0)) */}
+            {/* Tactical Role Bar with Logarithmic Visual Scale & Numeric Thresholds */}
             <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
-              <div className="flex items-center justify-between text-xs text-slate-300 mb-2">
+              <div className="flex items-center justify-between text-xs text-slate-300 mb-3">
                 <span className="flex items-center gap-1 font-medium text-sky-400">
                   <Shield className="w-3.5 h-3.5" /> Difensore
                 </span>
@@ -581,26 +604,78 @@ export const FutCardDetailModal: React.FC<{
                 </span>
               </div>
 
-              <div className="relative h-3 rounded-full bg-slate-800 overflow-hidden">
-                {/* Neutral TUT Zone */}
+              {/* Floating Green Marker Numeric Callout */}
+              <div className="relative h-6 mb-1">
                 <div
-                  className="absolute top-0 bottom-0 bg-amber-500/20 border-x border-amber-400/40"
+                  className="absolute -translate-x-1/2 top-0 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/60 text-[10px] font-mono-tabular font-bold text-emerald-300 whitespace-nowrap shadow-sm"
+                  style={{
+                    left: `${Math.max(8, Math.min(92, deltaPercent))}%`,
+                  }}
+                >
+                  Indice: {formattedDelta}
+                </div>
+              </div>
+
+              {/* Bar Track */}
+              <div className="relative h-3.5 rounded-full bg-slate-800 overflow-visible border border-slate-700/80">
+                {/* Left DIF gradient tint */}
+                <div
+                  className="absolute top-0 bottom-0 left-0 rounded-l-full bg-sky-500/15"
+                  style={{ width: `${tauLeftPercent}%` }}
+                />
+                {/* Right ATT gradient tint */}
+                <div
+                  className="absolute top-0 bottom-0 right-0 rounded-r-full bg-rose-500/15"
+                  style={{ width: `${100 - tauRightPercent}%` }}
+                />
+                {/* Neutral TUT Zone (-tau to +tau) */}
+                <div
+                  className="absolute top-0 bottom-0 bg-amber-500/20 border-x-2 border-amber-400/70"
                   style={{
                     left: `${tauLeftPercent}%`,
                     width: `${tauRightPercent - tauLeftPercent}%`,
                   }}
                 />
-                {/* Marker */}
+                {/* Center 0 tick */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-500/60" />
+
+                {/* Green Player Marker Dot */}
                 <div
-                  className="absolute top-0 bottom-0 w-2.5 -ml-1.25 rounded-full bg-emerald-400 shadow"
+                  className="absolute top-1/2 -translate-y-1/2 w-4 h-4 -ml-2 rounded-full bg-emerald-400 border-2 border-slate-950 shadow-[0_0_10px_rgba(52,211,153,0.9)]"
                   style={{ left: `${deltaPercent}%` }}
+                  title={`Valore giocatore: ${formattedDelta}`}
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2">
-                <span>Propensione Difensiva</span>
-                <span>Tuttocampista</span>
-                <span>Propensione Offensiva</span>
+              {/* Numeric Scale Labels (Min, -tau, 0, +tau, Max) */}
+              <div className="relative h-5 mt-1.5 font-mono-tabular text-[10px] select-none">
+                <span className="absolute left-0 text-sky-400/90 font-semibold">
+                  -1.00
+                </span>
+                <span
+                  className="absolute -translate-x-1/2 text-amber-300 font-semibold"
+                  style={{ left: `${tauLeftPercent}%` }}
+                >
+                  -{formattedTau}
+                </span>
+                <span className="absolute left-1/2 -translate-x-1/2 text-slate-500">
+                  0.00
+                </span>
+                <span
+                  className="absolute -translate-x-1/2 text-amber-300 font-semibold"
+                  style={{ left: `${tauRightPercent}%` }}
+                >
+                  +{formattedTau}
+                </span>
+                <span className="absolute right-0 text-rose-400/90 font-semibold">
+                  +1.00
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pt-1.5 border-t border-slate-900">
+                <span>Polo Difesa (Min -1.00)</span>
+                <span className="text-slate-500 italic">Scala logaritmica centrata</span>
+                <span>Polo Attacco (Max +1.00)</span>
               </div>
             </div>
           </div>

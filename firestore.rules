@@ -66,7 +66,7 @@ service cloud.firestore {
       data.keys().hasOnly([
         'id', 'name', 'nickname', 'avatar_url', 'claimed_by_uid', 'claim_status',
         'is_active', 'weights', 'wants_to_be_gk', 'computed', 'attr_votes_count', 'stats',
-        'initial_weights'
+        'initial_weights', 'accept_odds_changes'
       ]) &&
       data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
       data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
@@ -80,7 +80,8 @@ service cloud.firestore {
       data.computed is map &&
       data.attr_votes_count is map &&
       data.stats is map &&
-      (!('initial_weights' in data) || data.initial_weights is map);
+      (!('initial_weights' in data) || data.initial_weights is map) &&
+      (!('accept_odds_changes' in data) || data.accept_odds_changes is bool);
     }
 
     function isValidUser(data) {
@@ -167,7 +168,8 @@ service cloud.firestore {
           incoming().diff(existing()).affectedKeys().hasOnly([
             'stats', 'attr_votes_count', 'weights', 'initial_weights', 'natural_weights',
             'manual_override', 'manual_weights', 'override_audit', 'computed', 'wants_to_be_gk',
-            'claim_status', 'claimed_by_uid', 'name', 'nickname', 'avatar_url', 'is_active'
+            'claim_status', 'claimed_by_uid', 'name', 'nickname', 'avatar_url', 'is_active',
+            'accept_odds_changes'
           ])
         )
       );
