@@ -314,18 +314,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return ensureWildCardInRoster(loadedPlayers, config);
   });
 
-  // Always derive player computed metrics (overall, delta_index, role_state, role_label) from active config
-  const players = useMemo<Player[]>(
-    () =>
-      rawPlayers.map((p) => {
-        const m = computePlayerMetrics(p.weights, p.wants_to_be_gk, config);
-        return {
-          ...p,
-          computed: m.computed,
-        };
-      }),
-    [rawPlayers, config]
-  );
   const [users, setUsers] = useState<UserAccount[]>(() =>
     loadFromStorage(
       STORAGE_KEYS.USERS,
@@ -344,6 +332,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isProd ? [] : initialTestSnapshot.matchesHistory
     )
   );
+
+  // Always derive player computed metrics (overall, delta_index, role_state, role_label) from active config
+  // and reconcile match participation stats with actual matches in matchesHistory + match
+  const players = useMemo<Player[]>(() => {
+    const matchMap = new Map<string, Match>();
+    for (const m of matchesHistory) {
+      if (
+        m.status === 'ARCHIVED' ||
+        m.status === 'VOTING_OPEN' ||
+        m.status === 'IN_PLAY' ||
+        m.score.winner !== null
+      ) {
+        matchMap.set(m.id, m);
+      }
+    }
+    if (
+      match &&
+      (match.status === 'ARCHIVED' ||
+        match.status === 'VOTING_OPEN' ||
+        match.status === 'IN_PLAY' ||
+        match.score.winner !== null)
+    ) {
+      matchMap.set(match.id, match);
+    }
+    const playedMatchesList = Array.from(matchMap.values());
+
+    return rawPlayers.map((p) => {
+      const m = computePlayerMetrics(p.weights, p.wants_to_be_gk, config);
+      if (p.id === WILD_CARD_PLAYER_ID) {
+        return {
+          ...p,
+          computed: m.computed,
+        };
+      }
+
+      let histPlayed = 0;
+      let histWon = 0;
+      let histDrawn = 0;
+      let histVotes = 0;
+
+      for (const hm of playedMatchesList) {
+        const t1Ids = [
+          ...(hm.team_1.gk_id ? [hm.team_1.gk_id] : []),
+          ...hm.team_1.outfield_ids,
+        ];
+        const t2Ids = [
+          ...(hm.team_2.gk_id ? [hm.team_2.gk_id] : []),
+          ...hm.team_2.outfield_ids,
+        ];
+        const inT1 = t1Ids.includes(p.id);
+        const inT2 = t2Ids.includes(p.id);
+        if (inT1 || inT2) {
+          histPlayed += 1;
+          if (hm.score.winner === 'X') {
+            histDrawn += 1;
+          } else if (
+            (hm.score.winner === '1' && inT1) ||
+            (hm.score.winner === '2' && inT2)
+          ) {
+            histWon += 1;
+          }
+        }
+        if (hm.voting_tracker?.voters_completed_ids?.includes(p.id)) {
+          histVotes += 1;
+        }
+      }
+
+      return {
+        ...p,
+        computed: m.computed,
+        stats: {
+          ...p.stats,
+          matches_played: Math.max(p.stats.matches_played ?? 0, histPlayed),
+          matches_won: Math.max(p.stats.matches_won ?? 0, histWon),
+          matches_drawn: Math.max(p.stats.matches_drawn ?? 0, histDrawn),
+          votes_completed_matches: Math.max(
+            p.stats.votes_completed_matches ?? 0,
+            histVotes
+          ),
+        },
+      };
+    });
+  }, [rawPlayers, config, matchesHistory, match]);
   const [activeUid, setActiveUid] = useState<string | null>(() =>
     loadFromStorage<string | null>(STORAGE_KEYS.ACTIVE_UID, null)
   );
@@ -917,7 +988,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(
       autoValidate
         ? 'Profilo giocatore collegato e convalidato!'
-        : 'Richiesta inviata. Il Presidente confermerà la tua associazione.'
+        : 'Richiesta inviata. Il Direttore confermerà la tua associazione.'
     );
   };
 
@@ -1270,7 +1341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  // Modulo 03: Backoffice Match Management (Il Presidente)
+  // Modulo 03: Backoffice Match Management (Il Direttore)
   const updateDraftConvocati = async (convocatiIds: string[], dateLabel?: string) => {
     if (!match) return;
     if (match.status !== 'DRAFT') {
@@ -1327,25 +1398,147 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Data, ora e luogo del match aggiornati.');
   };
 
+  const applyLineupChangeAndBetPolicy = async (
+    baseMatch: Match,
+    newTeam1: Match['team_1'],
+    newTeam2: Match['team_2'],
+    newConvocatiIds: string[],
+    newActiveGksIds: string[],
+    nextSolution: Match['selected_solution'],
+    toastPrefix: string
+  ) => {
+    const newOdds = computeMatchOdds(
+      newTeam1.total_power,
+      newTeam2.total_power,
+      config
+    );
+
+    const oldT1Set = new Set([
+      ...(baseMatch.team_1.gk_id ? [baseMatch.team_1.gk_id] : []),
+      ...baseMatch.team_1.outfield_ids,
+    ]);
+    const newT1List = [
+      ...(newTeam1.gk_id ? [newTeam1.gk_id] : []),
+      ...newTeam1.outfield_ids,
+    ];
+    const hasLineupChanged =
+      oldT1Set.size !== newT1List.length ||
+      newT1List.some((id) => !oldT1Set.has(id)) ||
+      baseMatch.team_1.gk_id !== newTeam1.gk_id ||
+      baseMatch.team_2.gk_id !== newTeam2.gk_id;
+
+    const updatedBets: Record<string, Match['bets'][string]> = { ...baseMatch.bets };
+    let refundedCount = 0;
+    let repricedCount = 0;
+    const refundedPlayerAmounts: Record<string, number> = {};
+
+    const isBettingOrInPlay =
+      baseMatch.status === 'OPEN_FOR_BETS' || baseMatch.status === 'IN_PLAY';
+
+    if (isBettingOrInPlay && hasLineupChanged) {
+      for (const [betPlayerId, bet] of Object.entries(baseMatch.bets)) {
+        if (bet.settled || bet.status === 'CANCELLED') continue;
+        const betPlayer = players.find((p) => p.id === betPlayerId);
+        const acceptsChanges = betPlayer?.accept_odds_changes !== false;
+        if (acceptsChanges) {
+          updatedBets[betPlayerId] = {
+            ...bet,
+            potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
+          };
+          repricedCount += 1;
+        } else {
+          updatedBets[betPlayerId] = {
+            ...bet,
+            potential_payout: 0,
+            settled: true,
+            status: 'CANCELLED',
+          };
+          refundedPlayerAmounts[betPlayerId] =
+            (refundedPlayerAmounts[betPlayerId] ?? 0) + bet.amount;
+          refundedCount += 1;
+        }
+      }
+    } else {
+      for (const [betPlayerId, bet] of Object.entries(baseMatch.bets)) {
+        if (bet.settled || bet.status === 'CANCELLED') continue;
+        updatedBets[betPlayerId] = {
+          ...bet,
+          potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
+        };
+      }
+    }
+
+    const newReceivedCount = { ...baseMatch.voting_tracker.received_count_by_player };
+    for (const cid of newConvocatiIds) {
+      if (newReceivedCount[cid] === undefined) {
+        newReceivedCount[cid] = 0;
+      }
+    }
+
+    const updatedMatch: Match = {
+      ...baseMatch,
+      selected_solution: nextSolution,
+      convocati_ids: newConvocatiIds,
+      active_gks_ids: newActiveGksIds,
+      team_1: newTeam1,
+      team_2: newTeam2,
+      odds: newOdds,
+      bets: updatedBets,
+      voting_tracker: {
+        ...baseMatch.voting_tracker,
+        received_count_by_player: newReceivedCount,
+      },
+    };
+
+    if (Object.keys(refundedPlayerAmounts).length > 0) {
+      const nextPlayers = players.map((p) => {
+        const refund = refundedPlayerAmounts[p.id];
+        if (!refund) return p;
+        return {
+          ...p,
+          stats: {
+            ...p.stats,
+            tokens: p.stats.tokens + refund,
+          },
+        };
+      });
+      setPlayers(nextPlayers);
+      for (const pId of Object.keys(refundedPlayerAmounts)) {
+        const updatedP = nextPlayers.find((p) => p.id === pId);
+        if (updatedP) {
+          await syncDocToFirestore('players', updatedP.id, updatedP, OperationType.UPDATE);
+        }
+      }
+    }
+
+    setMatch(updatedMatch);
+    await syncDocToFirestore('matches', updatedMatch.id, updatedMatch, OperationType.UPDATE);
+
+    if (isBettingOrInPlay && (refundedCount > 0 || repricedCount > 0)) {
+      showToast(
+        `${toastPrefix} Quote aggiornate (${newOdds['1'].toFixed(2)} / ${newOdds['X'].toFixed(2)} / ${newOdds['2'].toFixed(2)}): ${repricedCount} scommesse adeguate, ${refundedCount} annullate e rimborsate.`
+      );
+    } else {
+      showToast(
+        `${toastPrefix} Quote dinamiche: ${newOdds['1'].toFixed(2)} / ${newOdds['X'].toFixed(2)} / ${newOdds['2'].toFixed(2)}.`
+      );
+    }
+  };
+
   const selectBalancingProposal = async (solution: 'A' | 'B') => {
     if (!match || !engineResult) return;
     const chosen =
       solution === 'A' ? engineResult.proposal_A : engineResult.proposal_B;
-    const newOdds = computeMatchOdds(
-      chosen.team_1.total_power,
-      chosen.team_2.total_power,
-      config
+
+    await applyLineupChangeAndBetPolicy(
+      match,
+      chosen.team_1,
+      chosen.team_2,
+      match.convocati_ids,
+      engineResult.active_gks_ids,
+      solution,
+      `Formazione impostata su Proposta ${solution}.`
     );
-    const updatedMatch: Match = {
-      ...match,
-      selected_solution: solution,
-      team_1: chosen.team_1,
-      team_2: chosen.team_2,
-      odds: newOdds,
-    };
-    setMatch(updatedMatch);
-    await syncDocToFirestore('matches', updatedMatch.id, updatedMatch, OperationType.UPDATE);
-    showToast(`Formazione impostata su Proposta ${solution}.`);
   };
 
   const swapPlayersBetweenTeams = async (player1Id: string, player2Id: string) => {
@@ -1393,125 +1586,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       config
     );
 
-    const applyLineupChangeAndBetPolicy = async (
-      baseMatch: Match,
-      newTeam1: Match['team_1'],
-      newTeam2: Match['team_2'],
-      newConvocatiIds: string[],
-      newActiveGksIds: string[],
-      toastPrefix: string
-    ) => {
-      const newOdds = computeMatchOdds(
-        newTeam1.total_power,
-        newTeam2.total_power,
-        config
-      );
-
-      const updatedBets: Record<string, Match['bets'][string]> = { ...baseMatch.bets };
-      let refundedCount = 0;
-      let repricedCount = 0;
-      const refundedPlayerAmounts: Record<string, number> = {};
-
-      const isBettingOrInPlay =
-        baseMatch.status === 'OPEN_FOR_BETS' || baseMatch.status === 'IN_PLAY';
-
-      if (isBettingOrInPlay) {
-        for (const [betPlayerId, bet] of Object.entries(baseMatch.bets)) {
-          if (bet.settled || bet.status === 'CANCELLED') continue;
-          const betPlayer = players.find((p) => p.id === betPlayerId);
-          const acceptsChanges = betPlayer?.accept_odds_changes !== false;
-          if (acceptsChanges) {
-            updatedBets[betPlayerId] = {
-              ...bet,
-              potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
-            };
-            repricedCount += 1;
-          } else {
-            updatedBets[betPlayerId] = {
-              ...bet,
-              potential_payout: 0,
-              settled: true,
-              status: 'CANCELLED',
-            };
-            refundedPlayerAmounts[betPlayerId] =
-              (refundedPlayerAmounts[betPlayerId] ?? 0) + bet.amount;
-            refundedCount += 1;
-          }
-        }
-      } else {
-        for (const [betPlayerId, bet] of Object.entries(baseMatch.bets)) {
-          if (bet.settled || bet.status === 'CANCELLED') continue;
-          updatedBets[betPlayerId] = {
-            ...bet,
-            potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
-          };
-        }
-      }
-
-      const newReceivedCount = { ...baseMatch.voting_tracker.received_count_by_player };
-      for (const cid of newConvocatiIds) {
-        if (newReceivedCount[cid] === undefined) {
-          newReceivedCount[cid] = 0;
-        }
-      }
-
-      const updatedMatch: Match = {
-        ...baseMatch,
-        selected_solution: 'CUSTOM',
-        convocati_ids: newConvocatiIds,
-        active_gks_ids: newActiveGksIds,
-        team_1: newTeam1,
-        team_2: newTeam2,
-        odds: newOdds,
-        bets: updatedBets,
-        voting_tracker: {
-          ...baseMatch.voting_tracker,
-          received_count_by_player: newReceivedCount,
-        },
-      };
-
-      let nextPlayers = players;
-      if (Object.keys(refundedPlayerAmounts).length > 0) {
-        nextPlayers = players.map((p) => {
-          const refund = refundedPlayerAmounts[p.id];
-          if (!refund) return p;
-          return {
-            ...p,
-            stats: {
-              ...p.stats,
-              tokens: p.stats.tokens + refund,
-            },
-          };
-        });
-        setPlayers(nextPlayers);
-        for (const pId of Object.keys(refundedPlayerAmounts)) {
-          const updatedP = nextPlayers.find((p) => p.id === pId);
-          if (updatedP) {
-            await syncDocToFirestore('players', updatedP.id, updatedP, OperationType.UPDATE);
-          }
-        }
-      }
-
-      setMatch(updatedMatch);
-      await syncDocToFirestore('matches', updatedMatch.id, updatedMatch, OperationType.UPDATE);
-
-      if (isBettingOrInPlay && (refundedCount > 0 || repricedCount > 0)) {
-        showToast(
-          `${toastPrefix} Quote aggiornate (${newOdds['1'].toFixed(2)} / ${newOdds['X'].toFixed(2)} / ${newOdds['2'].toFixed(2)}): ${repricedCount} scommesse mantenute con nuove quote, ${refundedCount} annullate e rimborsate.`
-        );
-      } else {
-        showToast(
-          `${toastPrefix} Quote dinamiche: ${newOdds['1'].toFixed(2)} / ${newOdds['X'].toFixed(2)} / ${newOdds['2'].toFixed(2)}.`
-        );
-      }
-    };
-
     await applyLineupChangeAndBetPolicy(
       match,
       recalculated.team_1,
       recalculated.team_2,
       match.convocati_ids,
       match.active_gks_ids,
+      'CUSTOM',
       'Scambio completato.'
     );
   };
@@ -1559,102 +1640,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       config
     );
 
-    const newOdds = computeMatchOdds(
-      recalculated.team_1.total_power,
-      recalculated.team_2.total_power,
-      config
-    );
-
-    const updatedBets: Record<string, Match['bets'][string]> = { ...match.bets };
-    let refundedCount = 0;
-    let repricedCount = 0;
-    const refundedPlayerAmounts: Record<string, number> = {};
-
-    const isBettingOrInPlay =
-      match.status === 'OPEN_FOR_BETS' || match.status === 'IN_PLAY';
-
-    if (isBettingOrInPlay) {
-      for (const [betPlayerId, bet] of Object.entries(match.bets)) {
-        if (bet.settled || bet.status === 'CANCELLED') continue;
-        const betPlayer = players.find((p) => p.id === betPlayerId);
-        const acceptsChanges = betPlayer?.accept_odds_changes !== false;
-        if (acceptsChanges) {
-          updatedBets[betPlayerId] = {
-            ...bet,
-            potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
-          };
-          repricedCount += 1;
-        } else {
-          updatedBets[betPlayerId] = {
-            ...bet,
-            potential_payout: 0,
-            settled: true,
-            status: 'CANCELLED',
-          };
-          refundedPlayerAmounts[betPlayerId] =
-            (refundedPlayerAmounts[betPlayerId] ?? 0) + bet.amount;
-          refundedCount += 1;
-        }
-      }
-    } else {
-      for (const [betPlayerId, bet] of Object.entries(match.bets)) {
-        if (bet.settled || bet.status === 'CANCELLED') continue;
-        updatedBets[betPlayerId] = {
-          ...bet,
-          potential_payout: Math.round(bet.amount * newOdds[bet.pick]),
-        };
-      }
-    }
-
-    const newReceivedCount = { ...match.voting_tracker.received_count_by_player };
-    if (newReceivedCount[inPlayerId] === undefined) {
-      newReceivedCount[inPlayerId] = 0;
-    }
-
-    const updatedMatch: Match = {
-      ...match,
-      selected_solution: 'CUSTOM',
-      convocati_ids: newConvocatiIds,
-      active_gks_ids: newActiveGksIds,
-      team_1: recalculated.team_1,
-      team_2: recalculated.team_2,
-      odds: newOdds,
-      bets: updatedBets,
-      voting_tracker: {
-        ...match.voting_tracker,
-        received_count_by_player: newReceivedCount,
-      },
-    };
-
-    if (Object.keys(refundedPlayerAmounts).length > 0) {
-      const nextPlayers = players.map((p) => {
-        const refund = refundedPlayerAmounts[p.id];
-        if (!refund) return p;
-        return {
-          ...p,
-          stats: {
-            ...p.stats,
-            tokens: p.stats.tokens + refund,
-          },
-        };
-      });
-      setPlayers(nextPlayers);
-      for (const pId of Object.keys(refundedPlayerAmounts)) {
-        const updatedP = nextPlayers.find((p) => p.id === pId);
-        if (updatedP) {
-          await syncDocToFirestore('players', updatedP.id, updatedP, OperationType.UPDATE);
-        }
-      }
-    }
-
-    setMatch(updatedMatch);
-    await syncDocToFirestore('matches', updatedMatch.id, updatedMatch, OperationType.UPDATE);
-
     const outName = players.find((p) => p.id === outPlayerId)?.name ?? outPlayerId;
     const inName = players.find((p) => p.id === inPlayerId)?.name ?? inPlayerId;
 
-    showToast(
-      `Sostituzione effettuata (${outName} → ${inName}). Quote: ${newOdds['1'].toFixed(2)} / ${newOdds['X'].toFixed(2)} / ${newOdds['2'].toFixed(2)} (${repricedCount} scommesse mantenute, ${refundedCount} annullate e rimborsate).`
+    await applyLineupChangeAndBetPolicy(
+      match,
+      recalculated.team_1,
+      recalculated.team_2,
+      newConvocatiIds,
+      newActiveGksIds,
+      'CUSTOM',
+      `Sostituzione effettuata (${outName} → ${inName}).`
     );
   };
 

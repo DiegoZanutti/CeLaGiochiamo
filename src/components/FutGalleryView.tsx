@@ -4,37 +4,41 @@ import { AllAttrKey, Player, RoleLabel } from '../types/models';
 import {
   getPlayerFutOverall,
   weightToFutStat,
-  WILD_CARD_PLAYER_ID,
 } from '../engine/mathEngine';
 import { FutCard, FutCardDetailModal } from './FutCard';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { Lock, Search, ShieldCheck, SlidersHorizontal, Vote } from 'lucide-react';
 
 type RoleFilter = 'ALL' | RoleLabel;
 type SortKey = 'overall' | AllAttrKey;
 
-const MIN_VOTED_MATCHES_FOR_FUT_GALLERY = 5;
+export const MIN_VOTES_FOR_UNLOCK = 4;
 
 export const FutGalleryView: React.FC = () => {
-  const { players } = useApp();
+  const { players, currentUser, currentPlayer, isDirettore } = useApp();
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
   const [sortBy, setSortBy] = useState<SortKey>('overall');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
-  const unlockedPlayers = useMemo(
-    () =>
-      players.filter(
-        (p) =>
-          p.is_active &&
-          (p.id === WILD_CARD_PLAYER_ID ||
-            (p.stats?.votes_completed_matches ?? 0) >= MIN_VOTED_MATCHES_FOR_FUT_GALLERY)
-      ),
+  const userCompletedVotes = currentPlayer?.stats?.votes_completed_matches ?? 0;
+
+  const canViewAllPlayers = useMemo(() => {
+    if (isDirettore) return true;
+    return (
+      currentUser?.auth_status === 'VALIDATED' &&
+      Boolean(currentPlayer) &&
+      userCompletedVotes >= MIN_VOTES_FOR_UNLOCK
+    );
+  }, [isDirettore, currentUser?.auth_status, currentPlayer, userCompletedVotes]);
+
+  const activePlayers = useMemo(
+    () => players.filter((p) => p.is_active),
     [players]
   );
 
   const filteredAndSortedPlayers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return unlockedPlayers
+    return activePlayers
       .filter((p) => {
         if (roleFilter === 'ALL') return true;
         const effectiveRole: RoleLabel = p.wants_to_be_gk
@@ -57,7 +61,7 @@ export const FutGalleryView: React.FC = () => {
           weightToFutStat(a.weights[sortBy])
         );
       });
-  }, [unlockedPlayers, roleFilter, sortBy, searchQuery]);
+  }, [activePlayers, roleFilter, sortBy, searchQuery]);
 
   const roleTabs: Array<{ id: RoleFilter; label: string }> = [
     { id: 'ALL', label: 'Tutti i Ruoli' },
@@ -83,10 +87,63 @@ export const FutGalleryView: React.FC = () => {
         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-2">
           <Search className="w-6 h-6" />
         </div>
-        <h2 className="text-xl font-display font-bold text-white">Carte FUT</h2>
+        <h2 className="text-xl font-display font-bold text-white">Players</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Nessun giocatore registrato nella rosa ufficiale. I profili appariranno qui automaticamente non appena un giocatore avrà completato le votazioni in almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite.
+          Nessun giocatore registrato nella rosa ufficiale.
         </p>
+      </div>
+    );
+  }
+
+  if (!canViewAllPlayers) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-10 text-center max-w-xl mx-auto my-6 space-y-4 shadow-lg">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white">
+              Players
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+              Le Card complete e le statistiche dettagliate di tutti i giocatori sono visibili ai giocatori{' '}
+              <strong className="text-emerald-400">validati</strong> che hanno completato{' '}
+              <strong className="text-white">almeno {MIN_VOTES_FOR_UNLOCK} votazioni post-partita</strong>.
+            </p>
+          </div>
+
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 max-w-md mx-auto space-y-2 text-xs">
+            <div className="flex items-center justify-between text-slate-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Vote className="w-4 h-4 text-emerald-400" />
+                Le tue votazioni completate:
+              </span>
+              <span className="font-mono-tabular font-bold text-amber-300">
+                {userCompletedVotes} / {MIN_VOTES_FOR_UNLOCK}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div
+                className="h-full bg-emerald-500 transition-all"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.round((userCompletedVotes / MIN_VOTES_FOR_UNLOCK) * 100)
+                  )}%`,
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 pt-0.5">
+              {!currentUser || currentUser.auth_status !== 'VALIDATED'
+                ? 'Accedi e collega un profilo giocatore, partecipa ad almeno 4 partite e vota la prestazione dei tuoi compagni'
+                : `Ti mancano ancora ${Math.max(
+                    1,
+                    MIN_VOTES_FOR_UNLOCK - userCompletedVotes
+                  )} votazioni post-partita per sbloccare tutte le Card della rosa.`}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -96,11 +153,18 @@ export const FutGalleryView: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-slate-800">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white">
-              Carte FUT
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-white">
+                Players
+              </h1>
+              {isDirettore && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Accesso Direttore
+                </span>
+              )}
+            </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              Carte sbloccate ({unlockedPlayers.length} su {players.filter((p) => p.is_active).length} giocatori) · La card compare dopo {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite votate
+              Rosa ufficiale completa ({activePlayers.length} giocatori attivi) · Clicca su una Card per esplorare tutti i dettagli
             </p>
           </div>
 
@@ -161,18 +225,9 @@ export const FutGalleryView: React.FC = () => {
         </div>
 
         {/* Cards Grid */}
-        {unlockedPlayers.length === 0 ? (
-          <div className="text-center py-12 px-4 space-y-2">
-            <div className="text-slate-200 font-semibold text-sm">
-              Nessuna Card FUT ancora sbloccata
-            </div>
-            <p className="text-slate-400 text-xs max-w-md mx-auto">
-              La Card FUT di un giocatore compare in questa sezione non appena il giocatore ha completato le votazioni in almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite.
-            </p>
-          </div>
-        ) : filteredAndSortedPlayers.length === 0 ? (
+        {filteredAndSortedPlayers.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-sm">
-            Nessun giocatore con almeno {MIN_VOTED_MATCHES_FOR_FUT_GALLERY} partite votate trovato con i filtri selezionati.
+            Nessun giocatore trovato con i filtri selezionati.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mt-6">

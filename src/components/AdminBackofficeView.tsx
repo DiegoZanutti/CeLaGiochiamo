@@ -321,7 +321,7 @@ const GLOBAL_VARS_DOC: Record<string, VariableDoc> = {
     label: 'Token di Benvenuto',
     category: 'Evoluzione Voti ed Economia Token',
     explanation:
-      'Saldo di Token omaggio accreditato a un giocatore appena l’account Google/Apple viene convalidato dal Presidente.',
+      'Saldo di Token omaggio accreditato a un giocatore appena l’account Google/Apple viene convalidato dal Direttore.',
     recommended: 'Valore consigliato: 100 Token',
   },
   attendance_reward: {
@@ -692,7 +692,7 @@ export const AdminBackofficeView: React.FC<{
     },
     USER_CLAIMS: {
       title: `Utenti & Collegamento Giocatori (${pendingUsers.length} in attesa)`,
-      subtitle: 'Gestisci le associazioni tra gli account registrati (incluso il Presidente) e i profili della rosa.',
+      subtitle: 'Gestisci le associazioni tra gli account registrati (incluso il Direttore) e i profili della rosa.',
     },
     GLOBAL_SETTINGS: {
       title: 'Regole & Parametri del Motore',
@@ -1709,7 +1709,7 @@ export const AdminBackofficeView: React.FC<{
                   Rosa Giocatori ({players.length} Giocatori)
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Visualizza le statistiche attuali e modifica in qualsiasi momento i Valori Iniziali (40–99) assegnati dal Presidente.
+                  Visualizza le statistiche attuali e modifica in qualsiasi momento i Valori Iniziali (40–99) assegnati dal Direttore.
                 </p>
               </div>
             </div>
@@ -1723,7 +1723,7 @@ export const AdminBackofficeView: React.FC<{
                   </div>
                   <div>
                     <h4 className="text-xs font-semibold text-white">
-                      Valore Iniziale del Presidente & Evoluzione Continua (EMA)
+                      Valore Iniziale del Direttore & Evoluzione Continua (EMA)
                     </h4>
                     <p className="text-[11px] text-slate-400">
                       Quando aggiungi o modifichi un giocatore imposti il suo <strong className="text-white">Valore Iniziale</strong>. Dopo ogni partita, i voti aggiornano il <strong className="text-emerald-400">Valore Attuale</strong> tramite media EMA. Se modifichi il Valore Iniziale, il Valore Attuale si ricalcola automaticamente mantenendo l&apos;effetto dei voti già ricevuti.
@@ -2288,7 +2288,7 @@ export const AdminBackofficeView: React.FC<{
                               return (
                                 <option key={u.uid} value={u.uid}>
                                   {u.display_name} ({u.email})
-                                  {u.is_admin ? ' · [Presidente]' : ''}
+                                  {u.is_admin ? ' · [Direttore]' : ''}
                                   {linkedP ? ` → ${linkedP.name}` : ' → [Non collegato]'}
                                 </option>
                               );
@@ -2413,7 +2413,7 @@ export const AdminBackofficeView: React.FC<{
                           <span className="text-slate-400">({u.email})</span>
                           {u.is_admin && (
                             <span className="text-emerald-400 font-semibold">
-                              · Presidente
+                              · Direttore
                             </span>
                           )}
                           <span className="text-slate-500">
@@ -3373,6 +3373,8 @@ export interface DualTeamKiviatChartProps {
   sublabel2?: string;
   weights2: PlayerWeights;
   isGkPair?: boolean;
+  isLocked?: boolean;
+  lockedMessage?: string;
 }
 
 export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
@@ -3383,6 +3385,8 @@ export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
   label2,
   sublabel2,
   weights2,
+  isLocked = false,
+  lockedMessage,
 }) => {
   const axes: Array<{ key: keyof PlayerWeights; short: string; full: string }> = [
     { key: 'tiro', short: 'TIR', full: 'Tiro' },
@@ -3413,6 +3417,8 @@ export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
   const poly1 = pts1.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const poly2 = pts2.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+  const showLockedEmptyPentagon = mode === 'PLAYER_PAIR' && isLocked;
+
   return (
     <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3 flex flex-col justify-between gap-1.5 h-full">
       {/* Header Compatto + Legenda Squadre / Giocatori */}
@@ -3423,7 +3429,11 @@ export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
               mode === 'PLAYER_PAIR' ? 'text-amber-300' : 'text-emerald-400'
             }`}
           >
-            {mode === 'PLAYER_PAIR' ? 'Confronto Diretto' : 'Medie Squadra'}
+            {showLockedEmptyPentagon
+              ? 'Confronto Diretto · Bloccato'
+              : mode === 'PLAYER_PAIR'
+                ? 'Confronto Diretto'
+                : 'Medie Squadra'}
           </span>
         </div>
 
@@ -3504,72 +3514,104 @@ export const DualTeamKiviatChart: React.FC<DualTeamKiviatChartProps> = ({
                 />
                 <text
                   x={labelPos.x}
-                  y={labelPos.y - 6}
+                  y={showLockedEmptyPentagon ? labelPos.y : labelPos.y - 6}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-300 text-[10px] font-mono-tabular font-bold"
                 >
                   {axis.short}
                 </text>
-                <text
-                  x={labelPos.x}
-                  y={labelPos.y + 7}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="text-[11px] font-mono-tabular font-bold"
-                >
-                  <tspan className="fill-emerald-400">{v1}</tspan>
-                  <tspan className="fill-slate-500"> · </tspan>
-                  <tspan className="fill-sky-400">{v2}</tspan>
-                </text>
+                {!showLockedEmptyPentagon && (
+                  <text
+                    x={labelPos.x}
+                    y={labelPos.y + 7}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    className="text-[11px] font-mono-tabular font-bold"
+                  >
+                    <tspan className="fill-emerald-400">{v1}</tspan>
+                    <tspan className="fill-slate-500"> · </tspan>
+                    <tspan className="fill-sky-400">{v2}</tspan>
+                  </text>
+                )}
               </g>
             );
           })}
 
-          {/* Poligono Squadra 2 / i Piero (Sky Blue) */}
-          <polygon
-            points={poly2}
-            fill="rgba(56, 189, 248, 0.22)"
-            stroke="#38bdf8"
-            strokeWidth="2.4"
-            className="transition-all duration-150"
-          />
+          {!showLockedEmptyPentagon && (
+            <>
+              {/* Poligono Squadra 2 / i Piero (Sky Blue) */}
+              <polygon
+                points={poly2}
+                fill="rgba(56, 189, 248, 0.22)"
+                stroke="#38bdf8"
+                strokeWidth="2.4"
+                className="transition-all duration-150"
+              />
 
-          {/* Poligono Squadra 1 / i Gabry (Emerald) */}
-          <polygon
-            points={poly1}
-            fill="rgba(16, 185, 129, 0.24)"
-            stroke="#10b981"
-            strokeWidth="2.4"
-            className="transition-all duration-150"
-          />
+              {/* Poligono Squadra 1 / i Gabry (Emerald) */}
+              <polygon
+                points={poly1}
+                fill="rgba(16, 185, 129, 0.24)"
+                stroke="#10b981"
+                strokeWidth="2.4"
+                className="transition-all duration-150"
+              />
 
-          {/* Vertici Squadra 2 */}
-          {pts2.map((p, i) => (
-            <circle
-              key={`p2-${i}`}
-              cx={p.x}
-              cy={p.y}
-              r="3.5"
-              fill="#38bdf8"
-              stroke="#020617"
-              strokeWidth="1"
-            />
-          ))}
+              {/* Vertici Squadra 2 */}
+              {pts2.map((p, i) => (
+                <circle
+                  key={`p2-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r="3.5"
+                  fill="#38bdf8"
+                  stroke="#020617"
+                  strokeWidth="1"
+                />
+              ))}
 
-          {/* Vertici Squadra 1 */}
-          {pts1.map((p, i) => (
-            <circle
-              key={`p1-${i}`}
-              cx={p.x}
-              cy={p.y}
-              r="3.5"
-              fill="#34d399"
-              stroke="#020617"
-              strokeWidth="1"
-            />
-          ))}
+              {/* Vertici Squadra 1 */}
+              {pts1.map((p, i) => (
+                <circle
+                  key={`p1-${i}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r="3.5"
+                  fill="#34d399"
+                  stroke="#020617"
+                  strokeWidth="1"
+                />
+              ))}
+            </>
+          )}
         </svg>
+
+        {showLockedEmptyPentagon && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+            {/* Immagine al centro del pentagono */}
+            <img
+              src="/assets/aistudio/image_9aaf9f8a.png"
+              alt="Confronto bloccato"
+              className="w-36 sm:w-40 h-36 sm:h-40 object-contain translate-y-5 drop-shadow-[0_6px_16px_rgba(0,0,0,0.75)] select-none"
+            />
+
+            {/* Fumetto in alto a sinistra */}
+            <div className="absolute top-1 left-1 sm:left-2 z-10 max-w-[185px] sm:max-w-[198px] bg-white text-slate-950 rounded-2xl rounded-br-xs px-3 py-2 shadow-xl border border-slate-200">
+              <div className="text-[10px] sm:text-[11px] font-display font-extrabold leading-tight text-slate-900">
+                &ldquo;Innanzitutto c&apos;è da fare i complimenti ai ragazzi...&rdquo;
+              </div>
+              <p className="text-[9.5px] sm:text-[10px] text-slate-700 font-medium leading-snug mt-0.5">
+                {lockedMessage ||
+                  'Completa almeno 4 votazioni post-partita per vedere il confronto diretto.'}
+              </p>
+              {/* Codina del fumetto orientata verso il centro/basso-destra */}
+              <div
+                className="w-3 h-3 bg-white border-r border-b border-slate-200 absolute -bottom-1.5 right-4 rotate-45"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

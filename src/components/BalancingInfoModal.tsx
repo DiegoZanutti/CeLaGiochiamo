@@ -433,7 +433,7 @@ export const BalancingInfoModal: React.FC<BalancingInfoModalProps> = ({
               {/* Parameter Table */}
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 overflow-x-auto">
                 <div className="text-slate-300 font-bold text-xs mb-3 font-sans">
-                  Costanti di Taratura del Sistema (Personalizzabili dal Presidente)
+                  Costanti di Taratura del Sistema (Personalizzabili dal Direttore)
                 </div>
                 <table className="w-full text-left text-xs font-sans">
                   <thead>

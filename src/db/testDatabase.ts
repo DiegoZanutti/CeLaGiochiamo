@@ -557,8 +557,8 @@ export function buildTestUsers(): UserAccount[] {
   return [
     {
       uid: 'uid_admin_diego',
-      email: getResolvedDirettoreEmail() || 'presidente@calcetto-test.it',
-      display_name: 'Il Presidente (Admin / Marco)',
+      email: getResolvedDirettoreEmail() || 'direttore@calcetto-test.it',
+      display_name: 'Il Direttore (Admin / Marco)',
       linked_player_id: 'player_marco',
       auth_status: 'VALIDATED',
       is_admin: true,

@@ -138,15 +138,15 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Prominent Backoffice Entry Card for Il Presidente */}
+      {/* Prominent Backoffice Entry Card for Il Direttore */}
       {isDirettore && (
         <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> Ruolo: Il Presidente
+              <ShieldCheck className="w-3.5 h-3.5" /> Ruolo: Il Direttore
             </div>
             <h2 className="text-xl font-display font-bold text-white mt-1.5">
-              Backoffice del Presidente
+              Backoffice del Direttore
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Gestione convocazioni, motore di bilanciamento matematico, approvazioni e parametri di gioco.
@@ -187,7 +187,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
             <div>
               <div className="text-xs text-slate-400">
                 Stato account: <strong className="text-emerald-400">{currentUser.auth_status}</strong>
-                {isDirettore ? ' · Presidente' : ''}
+                {isDirettore ? ' · Direttore' : ''}
                 {currentPlayer ? (
                   <span>
                     {' · '}Giocatore collegato: <strong className="text-white">{currentPlayer.name}</strong>
@@ -224,7 +224,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
           </div>
         </div>
 
-        {/* STATE: UNCLAIMED or Presidente without linked player or Changing Player */}
+        {/* STATE: UNCLAIMED or Direttore without linked player or Changing Player */}
         {(needsPlayerLink || isChangingPlayer) && (
           <div className="pt-5 space-y-4">
             <div className="text-xs font-medium text-amber-400 flex items-center gap-1.5">
@@ -232,8 +232,8 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
             </div>
             <p className="text-xs text-slate-400 max-w-xl">
               {isDirettore
-                ? 'Seleziona il tuo profilo giocatore dalla rosa (oppure creane uno nuovo) per collegare immediatamente il tuo account Presidente e partecipare a partite, scommesse e votazioni.'
-                : `Scegli il tuo nome nella lista dei giocatori per collegare la tua Card FUT e ricevere il bonus di +${config.initial_tokens} Token non appena Il Presidente approverà la richiesta.`}
+                ? 'Seleziona il tuo profilo giocatore dalla rosa (oppure creane uno nuovo) per collegare immediatamente il tuo account Direttore e partecipare a partite, scommesse e votazioni.'
+                : `Scegli il tuo nome nella lista dei giocatori per collegare la tua Card FUT e ricevere il bonus di +${config.initial_tokens} Token non appena Il Direttore approverà la richiesta.`}
             </p>
 
             <form onSubmit={handleClaimSubmit} className="space-y-3 max-w-md">
@@ -268,7 +268,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                   className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
-                  {isDirettore ? 'Collega Subito al Mio Account' : 'Invia Richiesta al Presidente'}
+                  {isDirettore ? 'Collega Subito al Mio Account' : 'Invia Richiesta al Direttore'}
                 </button>
                 {currentPlayer && (
                   <button
@@ -298,7 +298,7 @@ export const ProfileWalletView: React.FC<ProfileWalletViewProps> = ({
                 Richiesta di associazione inviata
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                La tua richiesta per &ldquo;{currentPlayer?.name ?? currentUser.linked_player_id}&rdquo; è in attesa di approvazione da parte del Presidente.
+                La tua richiesta per &ldquo;{currentPlayer?.name ?? currentUser.linked_player_id}&rdquo; è in attesa di approvazione da parte del Direttore.
               </p>
             </div>
           </div>

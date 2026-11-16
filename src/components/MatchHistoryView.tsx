@@ -75,12 +75,40 @@ export const MatchHistoryView: React.FC = () => {
     setExpandedMatchIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Personal Recap Stats from currentPlayer
+  // Personal Recap Stats from currentPlayer reconciled with allPlayedMatches
   const personalStats = useMemo(() => {
     if (!currentPlayer) return null;
-    const played = currentPlayer.stats.matches_played;
-    const won = currentPlayer.stats.matches_won;
-    const drawn = currentPlayer.stats.matches_drawn;
+    let histPlayed = 0;
+    let histWon = 0;
+    let histDrawn = 0;
+
+    for (const m of allPlayedMatches) {
+      const t1Ids = [
+        ...(m.team_1.gk_id ? [m.team_1.gk_id] : []),
+        ...m.team_1.outfield_ids,
+      ];
+      const t2Ids = [
+        ...(m.team_2.gk_id ? [m.team_2.gk_id] : []),
+        ...m.team_2.outfield_ids,
+      ];
+      const inT1 = t1Ids.includes(currentPlayer.id);
+      const inT2 = t2Ids.includes(currentPlayer.id);
+      if (inT1 || inT2) {
+        histPlayed += 1;
+        if (m.score.winner === 'X') {
+          histDrawn += 1;
+        } else if (
+          (m.score.winner === '1' && inT1) ||
+          (m.score.winner === '2' && inT2)
+        ) {
+          histWon += 1;
+        }
+      }
+    }
+
+    const played = Math.max(currentPlayer.stats.matches_played, histPlayed);
+    const won = Math.max(currentPlayer.stats.matches_won, histWon);
+    const drawn = Math.max(currentPlayer.stats.matches_drawn ?? 0, histDrawn);
     const lost = Math.max(0, played - won - drawn);
     const betsTotal = currentPlayer.stats.bets_total;
     const betsWon = currentPlayer.stats.bets_won;
@@ -96,7 +124,7 @@ export const MatchHistoryView: React.FC = () => {
       betsLost,
       netTokens,
     };
-  }, [currentPlayer]);
+  }, [currentPlayer, allPlayedMatches]);
 
   const renderTeamFormationCard = (
     title: string,
@@ -332,7 +360,7 @@ export const MatchHistoryView: React.FC = () => {
             Nessuna partita in storico
           </h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Non appena una partita entrerà in corso o verrà conclusa dal Presidente, apparirà qui con il risultato e le formazioni complete.
+            Non appena una partita entrerà in corso o verrà conclusa dal Direttore, apparirà qui con il risultato e le formazioni complete.
           </p>
         </div>
       ) : (

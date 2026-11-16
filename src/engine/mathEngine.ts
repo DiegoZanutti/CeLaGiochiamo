@@ -875,7 +875,7 @@ export function consolidateMatchVotesEMA(
 }
 
 /**
- * Ricalcola i pesi attuali (weights) quando il Presidente modifica i Valori Iniziali (initial_weights),
+ * Ricalcola i pesi attuali (weights) quando il Direttore modifica i Valori Iniziali (initial_weights),
  * mantenendo intatto l'effetto positivo o negativo accumulato tramite i voti passati (delta EMA).
  */
 export function recalculateWeightsFromNewInitial(
@@ -902,7 +902,7 @@ export function recalculateWeightsFromNewInitial(
 }
 
 /**
- * Calcola l'Overall FUT derivante dai Valori Iniziali impostati dal Presidente.
+ * Calcola l'Overall FUT derivante dai Valori Iniziali impostati dal Direttore.
  */
 export function getPlayerInitialFutOverall(player: Player): number {
   const initWeights = player.initial_weights ?? player.weights;
@@ -952,7 +952,7 @@ export function computeMatchOdds(
     return baseOdds;
   }
   const diff = team1Power - team2Power;
-  // Adeguamento proporzionale controllato dalla sensibilità del Presidente
+  // Adeguamento proporzionale controllato dalla sensibilità del Direttore
   const maxDelta = Math.min(0.85, Math.max(0.20, sensitivity * 0.9));
   const adjustment = clip(diff * sensitivity, -maxDelta, maxDelta);
   return {

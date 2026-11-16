@@ -15,6 +15,7 @@ import {
   DualTeamKiviatChartProps,
 } from './AdminBackofficeView';
 import {
+  AlertTriangle,
   Calendar,
   Check,
   CheckCircle2,
@@ -22,6 +23,7 @@ import {
   Lock,
   LogIn,
   Vote,
+  X,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -57,6 +59,7 @@ export const MatchHomeView: React.FC<{
     currentUser,
     currentPlayer,
     isLoggedIn,
+    isDirettore,
     config,
     placeBet,
     loginWithGoogle,
@@ -66,8 +69,28 @@ export const MatchHomeView: React.FC<{
   const [betAmount, setBetAmount] = useState<number>(25);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
+  const [isLockedPlayerAlertOpen, setIsLockedPlayerAlertOpen] = useState(false);
   const [pinnedPairIndex, setPinnedPairIndex] = useState<number | null>(null);
   const [hoveredPairIndex, setHoveredPairIndex] = useState<number | null>(null);
+  const [dismissedCancelKey, setDismissedCancelKey] = useState<string | null>(null);
+
+  const canViewCardsAndDirectRadar = useMemo(() => {
+    if (isDirettore) return true;
+    const completedVotes = currentPlayer?.stats?.votes_completed_matches ?? 0;
+    return (
+      currentUser?.auth_status === 'VALIDATED' &&
+      Boolean(currentPlayer) &&
+      completedVotes >= 4
+    );
+  }, [isDirettore, currentUser?.auth_status, currentPlayer]);
+
+  const handleSelectPitchPlayer = (player: Player) => {
+    if (canViewCardsAndDirectRadar) {
+      setInspectedPlayer(player);
+    } else {
+      setIsLockedPlayerAlertOpen(true);
+    }
+  };
 
   const playerMap = useMemo(
     () => new Map(players.map((p) => [p.id, p])),
@@ -192,8 +215,53 @@ export const MatchHomeView: React.FC<{
     }
   };
 
+  const cancelledBetNotificationKey =
+    match && userExistingBet?.status === 'CANCELLED'
+      ? `${match.id}_${userExistingBet.pick}_${userExistingBet.amount}`
+      : null;
+
+  const showCancelledBetBanner = Boolean(
+    cancelledBetNotificationKey &&
+      dismissedCancelKey !== cancelledBetNotificationKey
+  );
+
   return (
     <div className="space-y-6">
+      {/* Top Notification Banner when User's Bet was Cancelled due to Lineup Change */}
+      {match && userExistingBet?.status === 'CANCELLED' && showCancelledBetBanner && (
+        <div
+          role="alert"
+          className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
+        >
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-amber-300">
+                Scommessa annullata e rimborsata per cambio formazione
+              </div>
+              <div className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                La formazione della partita è cambiata e le quote 1X2 sono variate. Poiché hai disattivato &ldquo;Accetta variazioni di quota&rdquo;, la tua puntata di{' '}
+                <strong className="text-white">{userExistingBet.amount} Token</strong> sul segno{' '}
+                <strong className="text-white">&lsquo;{userExistingBet.pick}&rsquo;</strong> è stata annullata e i{' '}
+                <strong className="text-amber-300">{userExistingBet.amount} Token</strong> sono stati rimborsati sul tuo saldo.
+                {match.status === 'OPEN_FOR_BETS' &&
+                  ' Puoi piazzare una nuova scommessa con le quote aggiornate.'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDismissedCancelKey(cancelledBetNotificationKey)}
+            className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-semibold text-xs whitespace-nowrap shrink-0 flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+            Ho capito
+          </button>
+        </div>
+      )}
+
       {/* Compact Voting Banner if voting window is open */}
       {match && match.status === 'VOTING_OPEN' && isConvocatoInMatch && (
         <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
@@ -300,7 +368,7 @@ export const MatchHomeView: React.FC<{
                   Nessuna partita in programma
                 </h3>
                 <p className="text-xs text-slate-300 mt-1.5 max-w-sm leading-relaxed">
-                  La prossima formazione è in fase di organizzazione. Non appena Il Presidente pubblicherà la partita, potrai vedere le squadre e puntare i tuoi token.
+                  La prossima formazione è in fase di organizzazione. Non appena Il Direttore pubblicherà la partita, potrai vedere le squadre e puntare i tuoi token.
                 </p>
               </div>
             ) : (
@@ -330,7 +398,7 @@ export const MatchHomeView: React.FC<{
                       <PitchPlayerToken
                         player={team1Players[0]}
                         teamVariant="light"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     )}
                   </div>
@@ -342,7 +410,7 @@ export const MatchHomeView: React.FC<{
                         key={p.id}
                         player={p}
                         teamVariant="light"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     ))}
                   </div>
@@ -354,7 +422,7 @@ export const MatchHomeView: React.FC<{
                         key={p.id}
                         player={p}
                         teamVariant="light"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     ))}
                   </div>
@@ -371,7 +439,7 @@ export const MatchHomeView: React.FC<{
                         key={p.id}
                         player={p}
                         teamVariant="dark"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     ))}
                   </div>
@@ -383,7 +451,7 @@ export const MatchHomeView: React.FC<{
                         key={p.id}
                         player={p}
                         teamVariant="dark"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     ))}
                   </div>
@@ -394,7 +462,7 @@ export const MatchHomeView: React.FC<{
                       <PitchPlayerToken
                         player={team2Players[0]}
                         teamVariant="dark"
-                        onSelect={setInspectedPlayer}
+                        onSelect={handleSelectPitchPlayer}
                       />
                     )}
                   </div>
@@ -443,7 +511,7 @@ export const MatchHomeView: React.FC<{
                   Scommesse al momento chiuse
                 </div>
                 <div className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
-                  Le quote 1X2 apriranno non appena Il Presidente pubblicherà la formazione della prossima partita.
+                  Le quote 1X2 apriranno non appena Il Direttore pubblicherà la formazione della prossima partita.
                 </div>
               </div>
             ) : (
@@ -687,6 +755,9 @@ export const MatchHomeView: React.FC<{
                 sublabel2: `${activePair.slot2.role} · FUT ${activePair.slot2.futOvr}`,
                 weights2: activePair.slot2.player.weights,
                 isGkPair: activePair.slot1.isGk || activePair.slot2.isGk,
+                isLocked: !canViewCardsAndDirectRadar,
+                lockedMessage:
+                  'Completa almeno 4 votazioni post-partita per vedere il confronto diretto tra i giocatori.',
               }
             : {
                 mode: 'TEAM_AVG',
@@ -697,6 +768,7 @@ export const MatchHomeView: React.FC<{
                 sublabel2: `Forza ${match.team_2.total_power.toFixed(1)}`,
                 weights2: avgWeights2,
                 isGkPair: false,
+                isLocked: false,
               };
 
         return (
@@ -936,9 +1008,64 @@ export const MatchHomeView: React.FC<{
         onClose={() => setIsVotingModalOpen(false)}
       />
       <FutCardDetailModal
-        player={inspectedPlayer}
+        player={canViewCardsAndDirectRadar ? inspectedPlayer : null}
         onClose={() => setInspectedPlayer(null)}
       />
+
+      {/* Pop-up di Errore per Utenti Non Abilitati al Click sulla Player Card */}
+      {isLockedPlayerAlertOpen && !canViewCardsAndDirectRadar && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setIsLockedPlayerAlertOpen(false)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="locked-player-card-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-gradient-to-b from-rose-950/95 via-slate-900 to-slate-950 border-2 border-rose-500/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+          >
+            {/* Parte Superiore: Messaggio di Errore */}
+            <div className="p-5 pb-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[11px] font-bold uppercase tracking-wider">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span>Accesso Bloccato</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLockedPlayerAlertOpen(false)}
+                  aria-label="Chiudi avviso"
+                  className="w-8 h-8 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-rose-500/30 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 text-center px-1">
+                <h3
+                  id="locked-player-card-title"
+                  className="text-base sm:text-lg font-display font-extrabold text-white leading-snug"
+                >
+                  &ldquo;Innanzitutto c&apos;è da fare i complimenti ai ragazzi...&rdquo;
+                </h3>
+                <p className="text-xs sm:text-sm text-rose-200/90 leading-relaxed">
+                  Completa almeno <strong>4 votazioni post-partita</strong> con un profilo validato per vedere la Player Card.
+                </p>
+              </div>
+            </div>
+
+            {/* Parte Inferiore: Immagine all'interno del box messaggio */}
+            <div className="pt-1 px-4 flex justify-center bg-gradient-to-t from-rose-950/40 to-transparent">
+              <img
+                src="/assets/aistudio/image_9aaf9f8a.png"
+                alt="Avviso Player Card bloccata"
+                className="w-52 sm:w-56 h-48 sm:h-52 object-contain object-bottom drop-shadow-[0_8px_20px_rgba(0,0,0,0.8)] select-none"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

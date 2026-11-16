@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g>
+    <defs>
+      <clipPath id="lh_FFFFFF">
+        <rect x="0" y="0" width="244" height="512" />
+      </clipPath>
+      <clipPath id="rh_FFFFFF">
+        <rect x="268" y="0" width="244" height="512" />
+      </clipPath>
+    </defs>
+    <g clip-path="url(#lh_FFFFFF)">
+      <path d="M 256,56 A 200,200 0 1,0 256,456 L 256,376 A 120,120 0 1,1 256,136 Z" fill="#00E676"/>
+    </g>
+    <g clip-path="url(#rh_FFFFFF)">
+      <path d="M 256,56 A 200,200 0 0,1 436,170 L 362,202 A 120,120 0 0,0 256,136 Z" fill="#FFFFFF"/>
+      <path d="M 330,236 L 456,236 L 456,256 A 200,200 0 0,1 256,456 L 256,376 A 120,120 0 0,0 374,296 L 330,296 Z" fill="#FFFFFF"/>
+    </g>
+    <circle cx="256" cy="256" r="24" fill="#00E676"/>
+  </g>
+</svg>

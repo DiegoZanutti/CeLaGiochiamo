@@ -243,7 +243,7 @@ test('Modulo 02 - Stadio I: Coefficienti Polari distinti tra Valutazione Offensi
 });
 
 test('Modulo 04: Modifica del Valore Iniziale ricalcola il valore attuale preservando il delta EMA dei voti passati', () => {
-  // Giocatore base creato dal Presidente con tutti pesi iniziali a 0.50 (FUT OVR ~70)
+  // Giocatore base creato dal Direttore con tutti pesi iniziali a 0.50 (FUT OVR ~70)
   const basePlayer = makeTestPlayer('p_initial', 'Mario Evoluto', [0.5, 0.5, 0.5, 0.5, 0.5, 0.2]);
   const playerWithInit: Player = {
     ...basePlayer,
@@ -295,7 +295,7 @@ test('Modulo 04: Modifica del Valore Iniziale ricalcola il valore attuale preser
   assert.equal(afterMatch.weights.tiro, 0.575);
   assert.equal(afterMatch.initial_weights!.tiro, 0.5);
 
-  // 2. Ora il Presidente modifica il Valore Iniziale del tiro portandolo da 0.50 a 0.70:
+  // 2. Ora il Direttore modifica il Valore Iniziale del tiro portandolo da 0.50 a 0.70:
   // Il nuovo valore attuale deve essere 0.70 + (0.575 - 0.50) = 0.775 (preservando il +0.075 guadagnato coi voti)
   const newInitial = {
     ...afterMatch.initial_weights!,

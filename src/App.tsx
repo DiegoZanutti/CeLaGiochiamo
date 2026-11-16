@@ -76,8 +76,8 @@ const MainShell: React.FC = () => {
     },
     {
       id: 'GALLERY',
-      label: 'Carte FUT',
-      shortLabel: 'Carte FUT',
+      label: 'Players',
+      shortLabel: 'Players',
       icon: <LayoutGrid className="w-5 h-5" />,
     },
     {
@@ -100,8 +100,8 @@ const MainShell: React.FC = () => {
       ? [
           {
             id: 'ADMIN' as MainSection,
-            label: 'Presidente',
-            shortLabel: 'Presidente',
+            label: 'Direttore',
+            shortLabel: 'Direttore',
             icon: <Shield className="w-5 h-5" />,
           },
         ]
@@ -158,13 +158,13 @@ const MainShell: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2 text-xs font-display font-bold text-emerald-400 uppercase tracking-wider">
               <span className="text-slate-700">·</span>
               <Shield className="w-3.5 h-3.5" />
-              <span>Presidente</span>
+              <span>Direttore</span>
             </div>
           </div>
 
           {/* Zone 2: 4 Direct Backoffice Sections (Partita, Rosa, Utenti, Regole) */}
           <nav
-            aria-label="Menu Presidente"
+            aria-label="Menu Direttore"
             className="hidden md:flex items-center gap-6 text-sm font-medium"
           >
             {adminNavItems.map((item) => {
@@ -246,9 +246,14 @@ const MainShell: React.FC = () => {
               e.preventDefault();
               setActiveSection('MATCH');
             }}
-            className="text-lg sm:text-xl font-display font-extrabold tracking-tight text-white whitespace-nowrap shrink-0"
+            className="flex items-center gap-2.5 text-lg sm:text-xl font-display font-extrabold tracking-tight text-white whitespace-nowrap shrink-0"
           >
-            Ce La Giochiamo!
+            <img
+              src="/assets/aistudio/02_pittogramma_G_bianca_af2b6aa7.svg"
+              alt="Logo Ce La Giochiamo!"
+              className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0"
+            />
+            <span>Ce La Giochiamo!</span>
           </a>
 
           {/* Zone 2: Navigation Links */}
@@ -369,7 +374,7 @@ const MainShell: React.FC = () => {
       {/* Mobile Fixed Bottom Navigation Bar (Contextual when in Backoffice) */}
       {activeSection === 'ADMIN' ? (
         <nav
-          aria-label="Navigazione mobile Presidente"
+          aria-label="Navigazione mobile Direttore"
           className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-emerald-500/30 h-16 px-2 grid grid-cols-4 items-center"
         >
           {adminNavItems.map((item) => {
